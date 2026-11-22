@@ -4,7 +4,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ---
 
-## Thông số phần cứng đã kiểm tra
+## 1. Thông số phần cứng đã kiểm tra
 
 | Thành phần | Phần cứng | Trạng thái | Ghi chú |
 | --- | --- | --- | --- |
@@ -25,10 +25,73 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ---
 
-## Điểm khác biệt & bản vá quan trọng trong repo này
+## 2. Danh sách những thứ cần tải & Công cụ hỗ trợ
+
+### A. Driver đồ họa rời & Bộ cài macOS (Bắt buộc khi cài mới)
+
+| Thành phần | Mục đích | Link tải chính thức |
+| --- | --- | --- |
+| **WhateverXe Graphics (`0.4.4+`)** | Gói `.pkg` cài `AppleIntelTGLCompat`, `AppleIntelTGLGraphics*` vào `/Library/Extensions` & `/Library/GPUBundles` (kèm script gỡ `uninstall.sh`) | [b00t0x/WhateverXe-Graphics Releases](https://github.com/b00t0x/WhateverXe-Graphics/releases) |
+| **gibMacOS** | Tải trực tiếp `InstallAssistant.pkg` / bản Recovery macOS từ Windows hoặc macOS | [corpnewt/gibMacOS](https://github.com/corpnewt/gibMacOS) |
+| **Mist** *(trên macOS)* | Tải bộ cài macOS (`InstallAssistant.pkg` / `.app`) dễ dùng trên macOS | [ninxsoft/Mist Releases](https://github.com/ninxsoft/Mist/releases) |
+| **UnPlugged** | Tạo bộ cài macOS offline không cần mạng từ `InstallAssistant.pkg` trên USB/SSD cài đặt | [corpnewt/UnPlugged](https://github.com/corpnewt/UnPlugged) |
+
+### B. Công cụ chỉnh sửa EFI, SMBIOS, Phân vùng & USB
+
+| Công cụ | Mục đích | Link tải chính thức |
+| --- | --- | --- |
+| **OpenCorePkg** | Nâng cấp OpenCore, dùng `macrecovery` tải recovery và `ocvalidate` kiểm tra lỗi `config.plist` | [acidanthera/OpenCorePkg Releases](https://github.com/acidanthera/OpenCorePkg/releases) |
+| **GenSMBIOS** | Tạo `SystemSerialNumber`, `MLB`, `SystemUUID` mới cho `MacBookPro16,2` | [corpnewt/GenSMBIOS](https://github.com/corpnewt/GenSMBIOS) |
+| **ProperTree** | Chỉnh sửa `config.plist` trên Windows/macOS, snapshot kext chuẩn xác | [corpnewt/ProperTree](https://github.com/corpnewt/ProperTree) |
+| **OC Auxiliary Tools (OCAT)** | *(Tùy chọn)* Chỉnh `config.plist` bằng giao diện trực quan & kiểm tra validation | [ic005k/OCAuxiliaryTools Releases](https://github.com/ic005k/OCAuxiliaryTools/releases) |
+| **MountEFI** | Mount nhanh phân vùng EFI trên macOS để chép EFI | [corpnewt/MountEFI](https://github.com/corpnewt/MountEFI) |
+| **DiskGenius** *(trên Windows)* | Chia phân vùng ESP `FAT32`, phân vùng cài đặt & chép EFI từ Windows | [DiskGenius Download](https://www.diskgenius.com/download.php) |
+| **USBToolBox** *(Windows)* | Map lại cổng USB nếu đổi sang máy/cấu hình khác | [USBToolBox/tool Releases](https://github.com/USBToolBox/tool/releases) |
+| **OpenCore Install Guide** | Tài liệu chuẩn của Dortania để tra cứu thêm khi cần | [dortania/OpenCore-Install-Guide](https://github.com/dortania/OpenCore-Install-Guide) |
+
+### C. Công cụ chẩn đoán & Tiện ích nên cài sau khi vào macOS
+
+| Ứng dụng / Công cụ | Mục đích | Link tải chính thức |
+| --- | --- | --- |
+| **Hackintool** | Kiểm tra PCI ID, iGPU/Metal, USB port, kext đang nạp, NVRAM | [benbaker76/Hackintool Releases](https://github.com/benbaker76/Hackintool/releases) |
+| **IORegistryExplorer** | Xem cây IORegistry (`IORegistryClone`) để debug phần cứng/backlight | [khronokernel/IORegistryClone](https://github.com/khronokernel/IORegistryClone) |
+| **MaciASL** | Xem, sửa & biên dịch file ACPI `.dsl` / `.aml` | [acidanthera/MaciASL Releases](https://github.com/acidanthera/MaciASL/releases) |
+| **Mos** | Đảo riêng hướng cuộn chuột ngoài (giữ nguyên Touchpad) và làm mượt cuộn | [Caldis/Mos Releases](https://github.com/Caldis/Mos/releases) |
+| **LinearMouse** | *(Thay thế Mos)* Tùy chỉnh hướng cuộn, tốc độ & bỏ gia tốc chuột ngoài | [linearmouse/linearmouse Releases](https://github.com/linearmouse/linearmouse/releases) |
+| **LocalSend** | Gửi/nhận file qua Wi-Fi/LAN giữa macOS, Windows, iOS/Android thay thế AirDrop | [localsend/localsend Releases](https://github.com/localsend/localsend/releases) |
+
+### D. Nguồn gốc các Kext đang dùng trong EFI *(dùng khi muốn cập nhật phiên bản mới)*
+
+- **Core & Đồ họa:**
+  - `Lilu 1.7.3`: https://github.com/acidanthera/Lilu/releases
+  - `AMFIAnchor 0.1.2` + `AMFIAnchorInjector 1.0.0`: https://github.com/b00t0x/AMFIAnchor/releases
+  - `WhateverXe 0.8.3` *(repo này dùng bản tự build có patch cho Lenovo LOQ ADL-HX)*: https://github.com/b00t0x/WhateverXe/releases
+  - `WhateverGreen` *(dùng cho file dự phòng `config-safe-7mb.plist`)*: https://github.com/acidanthera/WhateverGreen/releases
+  - `BrightnessKeys 1.0.4`: https://github.com/acidanthera/BrightnessKeys/releases
+- **CPU / Nguồn / NVMe / SMC:**
+  - `VirtualSMC 1.3.9` (`SMCBatteryManager`, `SMCLightSensor`, `SMCProcessor`, `SMCSuperIO`): https://github.com/acidanthera/VirtualSMC/releases
+  - `YogaSMC 1.5.3`: https://github.com/zhen-zen/YogaSMC/releases
+  - `CpuTscSync 1.1.2`: https://github.com/acidanthera/CpuTscSync/releases
+  - `CpuTopologyRebuild 2.0.2`: https://github.com/b00t0x/CpuTopologyRebuild/releases
+  - `NVMeFix 1.1.4`: https://github.com/acidanthera/NVMeFix/releases
+  - `RestrictEvents 1.1.7`: https://github.com/acidanthera/RestrictEvents/releases
+- **Mạng & Bluetooth:**
+  - `AirportItlwm 2.4.0` *(bản Sequoia `24.2.0`+ của laobamac)*: https://github.com/laobamac/itlwm/releases *(repo gốc: https://github.com/OpenIntelWireless/itlwm/releases)*
+  - `IntelBluetoothFirmware 2.5.0` & `IntelBTPatcher 2.5.0` *(build từ nhánh `master` cho Sequoia `24.x`)*: https://github.com/OpenIntelWireless/IntelBluetoothFirmware/releases
+  - `BrcmPatchRAM` (`BlueToolFixup 2.7.3`): https://github.com/acidanthera/BrcmPatchRAM/releases
+  - `RealtekRTL8111 3.0.0`: https://github.com/Mieze/RTL8111_driver_for_OS_X/releases
+- **Âm thanh, Bàn phím, Touchpad & USB:**
+  - `AppleALC 1.9.9` (`layout-id = 18`): https://github.com/acidanthera/AppleALC/releases
+  - `VoodooI2C 2.9.1` (`VoodooI2C`, `VoodooI2CHID`, `VoodooGPIO`, `VoodooI2CServices`, `VoodooInput`): https://github.com/VoodooI2C/VoodooI2C/releases
+  - `VoodooPS2Controller 2.3.8`: https://github.com/acidanthera/VoodooPS2/releases
+  - `USBToolBox 1.2.0` + `UTBMap 1.1`: https://github.com/USBToolBox/kext/releases
+
+---
+
+## 3. Điểm khác biệt & bản vá quan trọng trong repo này
 
 1. **Bản vá `WhateverXe 0.8.3` cho Lenovo LOQ 12th/13th Gen HX (`0x468B` / `0x4688`):**
-   - Xem file nguồn patch tại [`patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch`](patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch).
+   - Xem file patch nguồn tại [`patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch`](patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch).
    - Bỏ kiểm tra bit fuse `0x42000 & 0x01000000` (luôn bằng `0` trên dòng HX dù PG1 `0x45404 & 1` và mạch PWM vẫn hoạt động), tránh lỗi đen màn `0xe00002d8` (`LightUpEDP` / `DDI0`).
    - Thêm `wrapADLSCDClockProbe` để lập trình lại CDCLK hợp lệ (`disableCDClock` + `setCDClockFrequency`) khi UEFI GOP để tần số ngoài bảng Apple.
    - Thêm `wrapADLSSetMode` để đảm bảo nguồn panel (`hwSetPanelPower(2)`), CDCLK PLL, DBUF (`0x45008`/`0x44FE8`) và `AUX A` (`0x45444`) được bật trước `hwSetMode`.
@@ -41,40 +104,34 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ---
 
-## Yêu cầu bắt buộc khi cài mới với WhateverXe
+## 4. Hướng dẫn cài mới từ đầu từng bước
 
-Bản `EFI` này dùng `WhateverXe` + `AMFIAnchor` (tăng tốc iGPU Intel Gen 12 trên Sequoia) nên **cần thêm gói driver graphics của WhateverXe**:
-
-1. **Bước 1 (Tạo SMBIOS riêng):**
+1. **Tạo SMBIOS riêng:**
    - Các trường `MLB`, `SystemSerialNumber`, `SystemUUID`, `ROM` trong `EFI/OC/config.plist` và `EFI/OC/config-safe-7mb.plist` đã được ẩn bằng giá trị mẫu để bảo mật.
-   - Hãy dùng **[GenSMBIOS](https://github.com/corpnewt/GenSMBIOS)** tạo bộ SMBIOS **`MacBookPro16,2`** mới và điền vào `PlatformInfo -> Generic` trước khi đăng nhập Apple ID / iCloud.
-2. **Bước 2 (Lần boot đầu nếu chưa cài WhateverXe Graphics pkg):**
-   - Trong `EFI/OC/` có sẵn **`config-safe-7mb.plist`** (chế độ VESA 7MB an toàn, vẫn giữ Bluetooth `2.5.0`). Nếu máy chưa cài `WhateverXe-Graphics-0.4.4.pkg` trong `/Library/Extensions`, hãy boot tạm bằng `config-safe-7mb.plist` trước.
-   - Cài **`WhateverXe-Graphics-0.4.4.pkg`** (payload gồm `AppleIntelTGLCompat.kext`, `AppleIntelTGLGraphics.kext`, `AppleIntelTGLGraphicsFramebuffer.kext` và `/Library/GPUBundles`), cho phép System Extension / xây dựng lại AuxKC theo hướng dẫn của WhateverXe.
-3. **Bước 3 (Boot với WhateverXe):**
-   - Đảm bảo `EFI/OC/config.plist` đang là bản WhateverXe chính.
-   - Tại menu OpenCore, chọn **Reset NVRAM** 1 lần rồi boot vào macOS.
+   - Dùng **GenSMBIOS** chọn kiểu máy **`MacBookPro16,2`**, mở file `.plist` bằng **ProperTree** và điền vào `PlatformInfo -> Generic` (nên đặt `ROM` là địa chỉ MAC cổng Ethernet thật dạng 6 byte hex nếu cần iServices).
+2. **Chuẩn bị phân vùng boot EFI (`FAT32`):**
+   - Chép toàn bộ thư mục `EFI` vào gốc phân vùng ESP `FAT32` (dùng **DiskGenius** trên Windows hoặc **MountEFI** / `diskutil` trên macOS).
+3. **Cài đặt macOS lần đầu (dùng chế độ an toàn 7MB trước):**
+   - Trong `EFI/OC/` có sẵn **`config-safe-7mb.plist`** (boot VESA 7MB an toàn, vẫn có Wi-Fi & Bluetooth `2.5.0`).
+   - Nếu ổ đích macOS chưa cài `WhateverXe-Graphics-0.4.4.pkg`, hãy tạm đổi tên `config.plist` -> `config-wex.plist` và copy `config-safe-7mb.plist` -> `config.plist` để cài xong macOS và vào được màn hình chính.
+4. **Cài gói Graphics & bật WhateverXe:**
+   - Khi đã vào macOS, cài `WhateverXe-Graphics-0.4.4.pkg`:
+     ```zsh
+     sudo installer -pkg WhateverXe-Graphics-0.4.4.pkg -target /
+     ```
+     *(Nếu macOS yêu cầu xác nhận System Extension trong Privacy & Security / xây lại kernel cache, làm theo hướng dẫn hiện trên màn hình).*
+   - Đổi lại file **`config.plist`** về bản WhateverXe chính (`config-wex.plist` -> `config.plist`).
+   - Khởi động lại, tại menu OpenCore chọn **Reset NVRAM** 1 lần rồi boot vào macOS -> kiểm tra **About This Mac** báo `Intel UHD Graphics 1536 MB` là hoàn tất.
 
 ---
 
-## Danh sách Kext chính đang bật
-
-- **Core & Graphics:** `Lilu 1.7.3`, `AMFIAnchor 0.1.2`, `AMFIAnchorInjector 1.0.0`, `WhateverXe 0.8.3` *(patched)*, `BrightnessKeys 1.0.4`
-- **CPU / Power / NVMe:** `CpuTscSync 1.1.2`, `CpuTopologyRebuild 2.0.2`, `VirtualSMC 1.3.9` (`SMCBatteryManager`, `SMCLightSensor`, `SMCProcessor`, `SMCSuperIO`), `YogaSMC 1.5.3`, `NVMeFix 1.1.4`, `RestrictEvents 1.1.7`
-- **Network & Bluetooth:** `AirportItlwm 2.4.0`, `RealtekRTL8111 3.0.0`, `IntelBluetoothFirmware 2.5.0`, `IntelBTPatcher 2.5.0`, `BlueToolFixup 2.7.3`
-- **Audio & Input / USB:** `AppleALC 1.9.9` (`layout-id = 18`), `VoodooI2C 2.9.1` + `VoodooI2CHID 1.0`, `VoodooPS2Controller 2.3.8`, `USBToolBox 1.2.0` + `UTBMap 1.1`, `XHCI-unsupported 0.9.2`
-
-*(Kext dự phòng khi dùng `config-safe-7mb.plist`: `WhateverGreen`)*
-
----
-
-## Mẹo tối ưu Sleep & Chuột ngoài
+## 5. Mẹo tối ưu Sleep & Chuột ngoài
 
 - **Tắt Hibernate để Sleep/Wake ổn định hơn trên macOS:**
   ```zsh
   sudo pmset -a hibernatemode 0 standby 0 autopoweroff 0 powernap 0
   ```
-- **Chuột ngoài cuộn ngược:** Vào **System Settings -> Mouse** tắt **Natural scrolling** (hoặc dùng **Mos** / **LinearMouse** để tách riêng hướng cuộn của chuột và touchpad).
+- **Chuột ngoài cuộn ngược:** Vào **System Settings -> Mouse** tắt **Natural scrolling**, hoặc cài **Mos** / **LinearMouse** để tách riêng hướng cuộn của chuột ngoài và touchpad.
 
 ---
 
