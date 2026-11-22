@@ -1,0 +1,143 @@
+diff --git a/WhateverXe/kern_xe.cpp b/WhateverXe/kern_xe.cpp
+index dd72071..3392789 100644
+--- a/WhateverXe/kern_xe.cpp
++++ b/WhateverXe/kern_xe.cpp
+@@ -13520,6 +13520,23 @@ bool XE::processKextFull(KernelPatcher &patcher, size_t index, mach_vm_address_t
+      adlsPowerReady=patcher.routeMultiple(index,&route,1,address,size);patcher.clearError();
+     }
+     IORegistryEntry::getRegistryRoot()->setProperty("ADLSLanePowerReady",adlsPowerReady);
++    // ADL-HX GOP may leave CDCLK outside Apple's probeCDClockFrequency table,
++    // and Doze/wake or refresh switches need panel/CDPLL/DBUF/AUX-A ready before hwSetMode.
++    adlsDisableCDClock=patcher.solveSymbol<mach_vm_address_t>(index,"__ZN31AppleIntelFramebufferController14disableCDClockEv",address,size);
++    adlsSetCDClock=patcher.solveSymbol<mach_vm_address_t>(index,"__ZN31AppleIntelFramebufferController19setCDClockFrequencyEy",address,size);
++    patcher.clearError();
++    if(adlsDisableCDClock && adlsSetCDClock && orgTGLRegisterRead) {
++     KernelPatcher::RouteRequest route("__ZN31AppleIntelFramebufferController21probeCDClockFrequencyEv",wrapADLSCDClockProbe,orgADLSCDClockProbe);
++     const bool cdReady=patcher.routeMultiple(index,&route,1,address,size);patcher.clearError();
++     IORegistryEntry::getRegistryRoot()->setProperty("ADLSCDClockFixReady",cdReady);
++    }
++    adlsPanelPowerFn=patcher.solveSymbol<mach_vm_address_t>(index,"__ZN31AppleIntelFramebufferController15hwSetPanelPowerEj",address,size);
++    patcher.clearError();
++    if(adlsPanelPowerFn && orgTGLRegisterRead) {
++     KernelPatcher::RouteRequest route("__ZN31AppleIntelFramebufferController9hwSetModeEP21AppleIntelFramebufferP21AppleIntelDisplayPathPK29IODetailedTimingInformationV2",wrapADLSSetMode,orgADLSSetMode);
++     const bool smReady=patcher.routeMultiple(index,&route,1,address,size);patcher.clearError();
++     IORegistryEntry::getRegistryRoot()->setProperty("ADLSSetModeFixReady",smReady);
++    }
+     // Native startup remains closed if any required ADL-S adapter is absent.
+     const auto contract=XELP::DisplayContract::adls(display12Available(),adlsWiring.dp!=0,adlsWiring.panel!=0);
+     adlsDisplayHooksReady=contract.ready();
+@@ -13937,7 +13954,7 @@ void XE::tglApplyPanelTiming(void *controller,bool apply) {
+   f.getPG(power,1);
+   const auto read=[&](uint32_t reg){return FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,reg);};
+   const auto wells=read(0x45404),fuse=read(0x42000);
+-  if(wells!=~0U && fuse!=~0U && (wells&1) && (fuse&0x01000000)) {
++  if(wells!=~0U && fuse!=~0U && (wells&1) && (s->adlsDisplaySelected || (fuse&0x01000000))) {
+    const auto on=read(0xC7208),off=read(0xC720C),control=read(0xC7204);
+    if(on!=~0U && off!=~0U && control!=~0U) {
+     s->tglPanelTimingBIOS[0]=on;s->tglPanelTimingBIOS[1]=off;s->tglPanelTimingBIOS[2]=control;
+@@ -13989,7 +14006,8 @@ bool XE::adlsCapturePanelPWM(void *controller) {
+  auto &f=s->tglTCNativeFunctions;f.getPG(power,1);
+  const auto read=[&](uint32_t reg){return FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,reg);};
+  const auto wells=read(0x45404),fuse=read(0x42000);
+- if(wells!=~0U && fuse!=~0U && (wells&1) && (fuse&0x01000000)) {
++ // ADL-S/HX south display leaves DFSM bit 24 cleared even when PG1 and PCH PWM MMIO are active.
++ if(wells!=~0U && fuse!=~0U && (wells&1)) {
+   const auto period=read(0xC8254),control=read(0xC8250);
+   const auto &p=s->firmwarePorts.panel;
+   s->adlsPanelPWM=XELP::PanelPWM::select(period,control,period?0:read(0xC2014),p.pwmHz,p.activeLowPWM);
+@@ -14018,7 +14036,7 @@ uint32_t XE::wrapADLSPanelBacklight(void *controller,uint32_t brightness) {
+  auto &f=s->tglTCNativeFunctions;f.getPG(power,1);
+  const auto wells=FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,0x45404);
+  const auto fuse=FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,0x42000);
+- const bool ready=wells!=~0U && fuse!=~0U && (wells&1) && (fuse&0x01000000);
++ const bool ready=wells!=~0U && fuse!=~0U && (wells&1);
+  if(ready) {
+   wrapTGLRegisterWrite(access,0xC8258,duty);
+   *reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(controller)+0xE58)=brightness;
+@@ -19169,6 +19187,70 @@ bool XE::wrapADLSPortInit(void *port,uint32_t *config) {
+     return ready;
+ }
+ 
++void XE::adlsProgramCDClock(void *controller,void *access) {
++    auto s=callbackXE;
++    if(!s->adlsSetCDClock || !s->orgTGLRegisterRead)return;
++    const uint32_t ref=FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,0x51004)>>29;
++    // DSSM[31:29]: 0 = 24 MHz, 1 = 19.2 MHz, 2 = 38.4 MHz.
++    static const uint64_t pll[] {24000000ULL*54,19200000ULL*68,38400000ULL*34};
++    if(ref<3)reinterpret_cast<void (*)(void *,uint64_t)>(s->adlsSetCDClock)(controller,pll[ref]);
++}
++
++uint64_t XE::wrapADLSCDClockProbe(void *controller) {
++    auto s=callbackXE;
++    if(s->adlsDisplaySelected && s->adlsDisableCDClock && s->adlsSetCDClock && s->orgTGLRegisterRead) {
++        auto access=*reinterpret_cast<void **>(static_cast<uint8_t *>(controller)+0xC40);
++        if(access) {
++            const uint32_t decimal=FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,0x46000)&0x7FFU;
++            static const uint32_t known[] {0x264,0x26E,0x44E,0x458,0x50E,0x518};
++            bool supported=false;for(auto v:known)supported|=(decimal==v);
++            if(!supported) {
++                FunctionCast(wrapADLSCDClockProbe,s->adlsDisableCDClock)(controller);
++                adlsProgramCDClock(controller,access);
++            }
++        }
++    }
++    return FunctionCast(wrapADLSCDClockProbe,s->orgADLSCDClockProbe)(controller);
++}
++
++uint32_t XE::wrapADLSSetMode(void *controller,void *fb,void *path,const void *timing) {
++    auto s=callbackXE;
++    if(s->adlsDisplaySelected && s->adlsWiring.panel) {
++        auto access=*reinterpret_cast<void **>(static_cast<uint8_t *>(controller)+0xC40);
++        if(access && s->orgTGLRegisterRead && s->orgTGLRegisterWrite) {
++            const auto rd=[&](uint32_t reg){return FunctionCast(wrapTGLRegisterRead,s->orgTGLRegisterRead)(access,reg);};
++            const auto wr=[&](uint32_t reg,uint32_t val){FunctionCast(wrapTGLRegisterWrite,s->orgTGLRegisterWrite)(access,reg,val);};
++            const uint32_t pp=rd(0xC7200);
++            if(s->adlsPanelPowerFn && pp!=~0U && !(pp&0x80000000U)) {
++                // hwSetPanelPower(2) powers ON the panel; 0/1 powers it OFF.
++                reinterpret_cast<uint32_t (*)(void *,uint32_t)>(s->adlsPanelPowerFn)(controller,2);
++            }
++            const uint32_t cdpll=rd(0x46070);
++            if(cdpll!=~0U && !(cdpll&0x80000000U)) {
++                const uint32_t dc=rd(0x45504);
++                if(dc!=~0U && (dc&3U)) {
++                    wr(0x45504,dc&~3U);
++                    IODelay(100);
++                }
++                adlsProgramCDClock(controller,access);
++                static const uint32_t dbuf[] {0x45008,0x44FE8};
++                for(auto reg:dbuf) {
++                    const uint32_t val=rd(reg);
++                    if(val==~0U || (val&0x40000000U))continue;
++                    wr(reg,val|0x80000000U);
++                    for(unsigned t=0;t<100 && !(rd(reg)&0x40000000U);++t)IODelay(10);
++                }
++            }
++            const uint32_t aux=rd(0x45444);
++            if(aux!=~0U && !(aux&1U)) {
++                wr(0x45444,aux|2U);
++                for(unsigned t=0;t<100 && !(rd(0x45444)&1U);++t)IODelay(10);
++            }
++        }
++    }
++    return FunctionCast(wrapADLSSetMode,s->orgADLSSetMode)(controller,fb,path,timing);
++}
++
+ void XE::wrapTGLEnableCombo(void *port) {
+     auto b=static_cast<uint8_t *>(port);
+     auto config=b?*reinterpret_cast<uint32_t **>(b+0x548):nullptr;
+diff --git a/WhateverXe/kern_xe.hpp b/WhateverXe/kern_xe.hpp
+index e6b18a7..be182a4 100644
+--- a/WhateverXe/kern_xe.hpp
++++ b/WhateverXe/kern_xe.hpp
+@@ -127,6 +127,11 @@ private:
+  static uint32_t wrapADLSLightUpEDP(void *controller,void *fb,void *path,const void *timing);
+  static uint32_t wrapADLSPanelBacklight(void *controller,uint32_t brightness);
+  static void wrapADLSPanelPWMEnable(void *access);
++    mach_vm_address_t orgADLSCDClockProbe {},adlsDisableCDClock {},adlsSetCDClock {};
++    mach_vm_address_t orgADLSSetMode {},adlsPanelPowerFn {};
++    static void adlsProgramCDClock(void *controller,void *access);
++    static uint64_t wrapADLSCDClockProbe(void *controller);
++    static uint32_t wrapADLSSetMode(void *controller,void *fb,void *path,const void *timing);
+     mach_vm_address_t orgADLSPowerPG {};
+     static uint8_t *adlsPowerTarget(void *power);
+     static void wrapADLSPowerPG(void *power,bool enable,uint32_t requested);
