@@ -13,15 +13,15 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 | **iGPU** | Intel UHD Graphics (`8086:468B`, rev `0x0C`) | Hoạt động | `WhateverXe 0.8.3` (patched), Metal 2, 1536 MB, chỉnh sáng `AppleBacklightDisplay` |
 | **dGPU** | NVIDIA RTX (tắt bằng SSDT) | Đã vô hiệu hóa | `SSDT-Disable_GPU_PEG1.aml` |
 | **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) | Hoạt động | Hỗ trợ `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)), PWM backlight & eDP 4 lane |
-| **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `AirportItlwm 2.4.0` (Sequoia `24.2.0`–`24.99.99`) |
-| **Bluetooth** | Intel Wireless Bluetooth (`8087:0026`) | Hoạt động | `IntelBluetoothFirmware 2.5.0` + `IntelBTPatcher 2.5.0` + `BlueToolFixup 2.7.3` |
+| **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `ForbiddenItlwm 0.6.0-beta.4` (bật AirDrop/AWDL trên Sequoia `24.0.0`–`24.99.99`), kèm dự phòng `AirportItlwm 2.4.0` |
+| **Bluetooth** | Intel Wireless Bluetooth (`8087:0026`) | Hoạt động | `IntelBluetoothFirmware 2.5.0` + `BlueToolFixup 2.7.3` + `BTLEAdvFixup 0.9.4` *(tắt `IntelBTPatcher` để tránh xung đột)* |
 | **Âm thanh** | Intel Audio (`8086:7AE0` / `AppleALC`, `layout-id = 18`) | Hoạt động | Loa ngoài, tai nghe, mic tích hợp |
 | **Mạng dây** | Realtek RTL8168H/8111H Gigabit Ethernet | Hoạt động | `RealtekRTL8111 3.0.0` |
 | **Touchpad / Phím** | I2C HID (`Magic Trackpad 2`) + PS/2 Keyboard | Hoạt động | `VoodooI2C 2.9.1` + `VoodooI2CHID 1.0` + `VoodooPS2Controller 2.3.8` |
 | **NVMe** | `SAMSUNG MZAMX512HCLV-00BL2` (`512 GB`) | Hoạt động | `NVMeFix 1.1.4` |
 | **Pin / SMC** | VirtualSMC + YogaSMC | Hoạt động | `VirtualSMC 1.3.9` + `SMCBatteryManager` + `YogaSMC 1.5.3` |
 
-> **Lưu ý tính năng Apple:** Card mạng/Bluetooth Intel hỗ trợ mạng Wi-Fi và ghép nối tai nghe/chuột/phím Bluetooth bình thường, nhưng **AirDrop / Handoff / Continuity** không hoạt động như card Broadcom gốc.
+> **Lưu ý tính năng Apple:** **AirDrop đã hoạt động** trên `macOS Sequoia 15.8.1` qua `ForbiddenItlwm 0.6.0-beta.4` + `BTLEAdvFixup 0.9.4` (xem [Mục 6](#6-kích-hoạt--gỡ-airdrop-forbiddenitlwm--btleadvfixup)). Các tính năng **Handoff / Continuity / Universal Control** nói chung vẫn chưa đầy đủ như card Broadcom gốc; có thể dùng thêm **LocalSend** khi chuyển file với Windows/Android.
 
 ---
 
@@ -75,8 +75,9 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
   - `CpuTopologyRebuild 2.0.2`: https://github.com/b00t0x/CpuTopologyRebuild/releases
   - `NVMeFix 1.1.4`: https://github.com/acidanthera/NVMeFix/releases
   - `RestrictEvents 1.1.7`: https://github.com/acidanthera/RestrictEvents/releases
-- **Mạng & Bluetooth:**
-  - `AirportItlwm 2.4.0` *(bản Sequoia `24.2.0`+ của laobamac)*: https://github.com/laobamac/itlwm/releases *(repo gốc: https://github.com/OpenIntelWireless/itlwm/releases)*
+- **Mạng, Bluetooth & AirDrop:**
+  - `ForbiddenItlwm 0.6.0-beta.4` *(bật AirDrop/AWDL trên Sequoia `24.0.0`–`24.99.99`)* & `BTLEAdvFixup 0.9.4`: https://github.com/retropineaple/ForbiddenItlwm/releases
+  - `AirportItlwm 2.4.0` *(bản dự phòng không AirDrop cho Sequoia `24.2.0`+, của laobamac)*: https://github.com/laobamac/itlwm/releases *(repo gốc: https://github.com/OpenIntelWireless/itlwm/releases)*
   - `IntelBluetoothFirmware 2.5.0` & `IntelBTPatcher 2.5.0` *(build từ nhánh `master` cho Sequoia `24.x`)*: https://github.com/OpenIntelWireless/IntelBluetoothFirmware/releases
   - `BrcmPatchRAM` (`BlueToolFixup 2.7.3`): https://github.com/acidanthera/BrcmPatchRAM/releases
   - `RealtekRTL8111 3.0.0`: https://github.com/Mieze/RTL8111_driver_for_OS_X/releases
@@ -95,24 +96,29 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
    - Bỏ kiểm tra bit fuse `0x42000 & 0x01000000` (luôn bằng `0` trên dòng HX dù PG1 `0x45404 & 1` và mạch PWM vẫn hoạt động), tránh lỗi đen màn `0xe00002d8` (`LightUpEDP` / `DDI0`).
    - Thêm `wrapADLSCDClockProbe` để lập trình lại CDCLK hợp lệ (`disableCDClock` + `setCDClockFrequency`) khi UEFI GOP để tần số ngoài bảng Apple.
    - Thêm `wrapADLSSetMode` để đảm bảo nguồn panel (`hwSetPanelPower(2)`), CDCLK PLL, DBUF (`0x45008`/`0x44FE8`) và `AUX A` (`0x45444`) được bật trước `hwSetMode`.
-   - Thêm boot-arg `-nodisplaysleepDC6` trong `config.plist` (`-allow3d -disablegfxfirmware -igfxdvmt -nodisplaysleepDC6 keepsyms=1`).
+   - Thêm boot-arg `-nodisplaysleepDC6` trong `config.plist` (`-allow3d -disablegfxfirmware -igfxdvmt -nodisplaysleepDC6 keepsyms=1` trước khi nối các cờ AirDrop).
 
 2. **Bluetooth Intel trên macOS Sequoia (`24.x`):**
-   - Dùng `IntelBluetoothFirmware.kext` và `IntelBTPatcher.kext` phiên bản **`2.5.0`** (build từ nhánh `master` của `OpenIntelWireless/IntelBluetoothFirmware`, hỗ trợ Sequoia `24.x` và `descriptor->prepare(kIODirectionOut)`), đi kèm `BlueToolFixup.kext` **`2.7.3`**.
-   - Thứ tự kext trong `Kernel -> Add`: `Lilu` -> `IntelBluetoothFirmware` -> `IntelBTPatcher` -> `BlueToolFixup`.
+   - Dùng `IntelBluetoothFirmware.kext` (`2.5.0`) + `BlueToolFixup.kext` (`2.7.3`), kèm **`BTLEAdvFixup.kext` (`0.9.4`)** nạp **sau `BlueToolFixup`** để bật Bluetooth LE advertising cho AirDrop.
+   - Khi dùng `BTLEAdvFixup.kext`, **`IntelBTPatcher.kext` (`2.5.0`) phải để `Enabled = False`** (vì cả hai cùng hook cùng hàm USB Bluetooth trên macOS — bật song song sẽ gây kernel panic; kext vẫn được giữ sẵn trong `EFI/OC/Kexts/` cho `config-no-airdrop.plist` / `config-safe-7mb.plist`).
+   - Thứ tự kext trong `Kernel -> Add`: `Lilu` -> `IntelBluetoothFirmware` -> `IntelBTPatcher` *(tắt)* -> `BlueToolFixup` -> `BTLEAdvFixup`.
    - NVRAM đã khai báo sẵn `bluetoothExternalDongleFailed` và `bluetoothInternalControllerInfo` (trong cả `Add` và `Delete`).
+
+3. **AirDrop / AWDL trên Wi-Fi Intel (`ForbiddenItlwm 0.6.0-beta.4`):**
+   - Thay thế `AirportItlwm.kext` (`Enabled = False`) bằng **`ForbiddenItlwm.kext` (`0.6.0-beta.4`)** với `MinKernel = 24.0.0`, `MaxKernel = 24.99.99` (giới hạn trong phạm vi Sequoia `24.x`, tránh vô tình nạp nhầm nếu cập nhật lên Tahoe `25.x`).
+   - Bộ 18 cờ `boot-args` kiểm thử cho AirDrop (`-btleadv`, `-itlawdlcoexprobe`, `itlawdlintcoal=4`, `itlawdltxqueue=4096`, ...) đã được thêm sẵn vào `EFI/OC/config.plist` (tổng độ dài `360` ký tự, dưới giới hạn `1024` của macOS).
 
 ---
 
 ## 4. Hướng dẫn cài mới từ đầu từng bước
 
 1. **Tạo SMBIOS riêng:**
-   - Các trường `MLB`, `SystemSerialNumber`, `SystemUUID`, `ROM` trong `EFI/OC/config.plist` và `EFI/OC/config-safe-7mb.plist` đã được ẩn bằng giá trị mẫu để bảo mật.
+   - Các trường `MLB`, `SystemSerialNumber`, `SystemUUID`, `ROM` trong `EFI/OC/config.plist`, `EFI/OC/config-no-airdrop.plist` và `EFI/OC/config-safe-7mb.plist` đã được ẩn bằng giá trị mẫu để bảo mật.
    - Dùng **GenSMBIOS** chọn kiểu máy **`MacBookPro16,2`**, mở file `.plist` bằng **ProperTree** và điền vào `PlatformInfo -> Generic` (nên đặt `ROM` là địa chỉ MAC cổng Ethernet thật dạng 6 byte hex nếu cần iServices).
 2. **Chuẩn bị phân vùng boot EFI (`FAT32`):**
    - Chép toàn bộ thư mục `EFI` vào gốc phân vùng ESP `FAT32` (dùng **DiskGenius** trên Windows hoặc **MountEFI** / `diskutil` trên macOS).
 3. **Cài đặt macOS lần đầu (dùng chế độ an toàn 7MB trước):**
-   - Trong `EFI/OC/` có sẵn **`config-safe-7mb.plist`** (boot VESA 7MB an toàn, vẫn có Wi-Fi & Bluetooth `2.5.0`).
+   - Trong `EFI/OC/` có sẵn **`config-safe-7mb.plist`** (boot VESA 7MB an toàn, dùng `AirportItlwm 2.4.0` + Bluetooth `2.5.0` tiêu chuẩn).
    - Nếu ổ đích macOS chưa cài `WhateverXe-Graphics-0.4.4.pkg`, hãy tạm đổi tên `config.plist` -> `config-wex.plist` và copy `config-safe-7mb.plist` -> `config.plist` để cài xong macOS và vào được màn hình chính.
 4. **Cài gói Graphics & bật WhateverXe:**
    - Khi đã vào macOS, cài `WhateverXe-Graphics-0.4.4.pkg`:
@@ -120,12 +126,18 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
      sudo installer -pkg WhateverXe-Graphics-0.4.4.pkg -target /
      ```
      *(Nếu macOS yêu cầu xác nhận System Extension trong Privacy & Security / xây lại kernel cache, làm theo hướng dẫn hiện trên màn hình).*
-   - Đổi lại file **`config.plist`** về bản WhateverXe chính (`config-wex.plist` -> `config.plist`).
-   - Khởi động lại, tại menu OpenCore chọn **Reset NVRAM** 1 lần rồi boot vào macOS -> kiểm tra **About This Mac** báo `Intel UHD Graphics 1536 MB` là hoàn tất.
+   - Đổi lại file **`config.plist`** về bản WhateverXe chính (`config-wex.plist` -> `config.plist` — bản này đã bật sẵn AirDrop `ForbiddenItlwm 0.6.0-beta.4` + `BTLEAdvFixup 0.9.4`).
+   - Khởi động lại, tại menu OpenCore chọn **Reset NVRAM** 1 lần rồi boot vào macOS -> kiểm tra **About This Mac** báo `Intel UHD Graphics 1536 MB` và test AirDrop ở [Mục 6](#6-kích-hoạt--gỡ-airdrop-forbiddenitlwm--btleadvfixup).
 5. **Bật tần số quét 144 Hz / 120 Hz cho màn hình nội bộ (nếu cần):**
    - Chạy script có sẵn trong repo rồi Restart (chi tiết xem [Mục 5](#5-kích-hoạt-màn-hình-144-hz--120-hz-boe-ne156fhm-nx9)):
      ```zsh
      ./display-144hz/install-144hz.sh
+     ```
+6. **Nếu đang dùng EFI cũ (chưa có AirDrop) và muốn cập nhật trực tiếp mà giữ nguyên SMBIOS:**
+   - Chạy script trong thư mục [`airdrop/`](airdrop/) (chi tiết xem [Mục 6](#6-kích-hoạt--gỡ-airdrop-forbiddenitlwm--btleadvfixup)):
+     ```zsh
+     chmod +x airdrop/*.sh airdrop/*.py
+     ./airdrop/install-airdrop.sh
      ```
 
 ---
@@ -155,7 +167,36 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ---
 
-## 6. Mẹo tối ưu Sleep & Chuột ngoài
+## 6. Kích hoạt & Gỡ AirDrop (`ForbiddenItlwm` + `BTLEAdvFixup`)
+
+- **Cơ chế:** Dùng `ForbiddenItlwm.kext` (`0.6.0-beta.4`) để dựng giao diện `awdl0` cùng `BTLEAdvFixup.kext` (`0.9.4`) để vá Bluetooth LE advertising trên macOS Sequoia (`15.8.1`), thay cho `AirportItlwm 2.4.0` + `IntelBTPatcher 2.5.0`.
+- **Nếu cài mới từ repo:** `EFI/OC/config.plist` đã bật sẵn AirDrop (chỉ cần điền SMBIOS). Bản không AirDrop được lưu dự phòng tại `EFI/OC/config-no-airdrop.plist`.
+- **Nếu cập nhật lên EFI `OPENCORE` đang chạy (giữ nguyên SMBIOS hiện tại):**
+  ```zsh
+  chmod +x airdrop/*.sh airdrop/*.py
+  ./airdrop/install-airdrop.sh
+  ```
+  Script [`airdrop/install-airdrop.sh`](airdrop/install-airdrop.sh) tự tìm phân vùng EFI `OPENCORE`, backup `config-no-airdrop-backup.plist`, chép `ForbiddenItlwm.kext` + `BTLEAdvFixup.kext` (giữ nguyên `AirportItlwm.kext` & `IntelBTPatcher.kext` trên đĩa để rollback), tắt `IntelBTPatcher` & `AirportItlwm`, thêm cờ `boot-args` và chạy `plutil -lint`. Sau khi xong hãy **Restart** máy.
+- **Kiểm tra sau khi Restart:**
+  ```zsh
+  ./airdrop/check_compat.sh
+  ifconfig awdl0
+  ```
+  *(Đã kiểm chứng AirDrop hoạt động thực tế trên máy `LOQ 15IAX9E` / Wi-Fi `8086:7AF0` (`iwlwifi-so-a0-hr-b0-68.ucode`) / `macOS 15.8.1 (24H32)`: `ForbiddenItlwm 0.6.0` & `BTLEAdvFixup 0.9.4` nạp đầy đủ, `BTLEAdvFixup` khớp `4/4 (patched)`, `awdl0` UP, listener chạy kênh `149 @ 80 MHz`.)*
+- **Lưu ý thực tế & nâng cấp macOS:**
+  - Nếu trong `check_compat.sh` mục 7 báo `net.filter_state = pf` và `enable_netagent = 0` (do quirk `PowerTimeoutKernelPanic = True` trong OpenCore), AirDrop vẫn hoạt động bình thường nhưng tốc độ QUIC có thể chậm hơn tối đa; giữ `PowerTimeoutKernelPanic = True` mặc định để tránh kernel panic khi sleep/wake.
+  - Nếu trên bản macOS khác mà `check_compat.sh` báo `ItlwmAWDLMiState = blocked: build not verified` khiến thiết bị khác không tìm thấy Mac, kiểm tra release mới hơn của `ForbiddenItlwm` (hoặc xem cảnh báo `-itlawdlanybuild` trên repo gốc trước khi dùng).
+  - Nếu muốn thử bản mới hơn (ví dụ `0.7.0-alpha.1` kèm cờ `itlawdlsched=1 -btleadvnodupfilter`), có thể truyền `--alpha --kexts-dir <thư_mục_kext>` cho `./airdrop/install-airdrop.sh`.
+  - ⚠️ **Khi nâng cấp lên macOS Tahoe (`26` / kernel `25.x`):** Bản `ForbiddenItlwm` kèm repo đang đặt `MaxKernel = 24.99.99` (chỉ nạp trên Sequoia), cần cập nhật đúng kext bản Tahoe hoặc tạm chuyển sang `config-no-airdrop.plist` / `./airdrop/revert-airdrop.sh` trước khi nâng cấp.
+- **Gỡ AirDrop & quay lại `AirportItlwm` trong 1 lệnh:**
+  ```zsh
+  ./airdrop/revert-airdrop.sh
+  ```
+  Sau đó **Restart** để quay về `AirportItlwm 2.4.0` + `IntelBTPatcher 2.5.0`.
+
+---
+
+## 7. Mẹo tối ưu Sleep & Chuột ngoài
 
 - **Tắt Hibernate để Sleep/Wake ổn định hơn trên macOS:**
   ```zsh
