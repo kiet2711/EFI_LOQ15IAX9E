@@ -18,9 +18,25 @@
 				<key>Comment</key>
 				<string>SSDT-Disable_GPU_PEG1.aml (Disable RTX 3050 dGPU)</string>
 				<key>Enabled</key>
-				<true/>
+				<false/>
 				<key>Path</key>
 				<string>SSDT-Disable_GPU_PEG1.aml</string>
+			</dict>
+			<dict>
+				<key>Comment</key>
+				<string>SSDT-Enable_GPU_PEG1.aml (Power on RTX 3050 dGPU on Darwin)</string>
+				<key>Enabled</key>
+				<true/>
+				<key>Path</key>
+				<string>SSDT-Enable_GPU_PEG1.aml</string>
+			</dict>
+			<dict>
+				<key>Comment</key>
+				<string>SSDT-PEG1-KeepPower.aml (Keep PEG1 PXP_ powered on Darwin)</string>
+				<key>Enabled</key>
+				<true/>
+				<key>Path</key>
+				<string>SSDT-PEG1-KeepPower.aml</string>
 			</dict>
 			<dict>
 				<key>Comment</key>
@@ -183,6 +199,45 @@
 				<data>
 				</data>
 			</dict>
+			<dict>
+				<key>Base</key>
+				<string></string>
+				<key>BaseSkip</key>
+				<integer>0</integer>
+				<key>Comment</key>
+				<string>PEG1 PXP_ _OFF to XOFF rename - requires SSDT-PEG1-KeepPower.aml</string>
+				<key>Count</key>
+				<integer>1</integer>
+				<key>Enabled</key>
+				<true/>
+				<key>Find</key>
+				<data>
+				UE9OX0wyM0RbIgpkFEUXX09GRgA=
+				</data>
+				<key>Limit</key>
+				<integer>0</integer>
+				<key>Mask</key>
+				<data>
+				</data>
+				<key>OemTableId</key>
+				<data>
+				</data>
+				<key>Replace</key>
+				<data>
+				UE9OX0wyM0RbIgpkFEUXWE9GRgA=
+				</data>
+				<key>ReplaceMask</key>
+				<data>
+				</data>
+				<key>Skip</key>
+				<integer>0</integer>
+				<key>TableLength</key>
+				<integer>0</integer>
+				<key>TableSignature</key>
+				<data>
+				U1NEVA==
+				</data>
+			</dict>
 		</array>
 		<key>Quirks</key>
 		<dict>
@@ -293,7 +348,7 @@
 			<key>RebuildAppleMemoryMap</key>
 			<true/>
 			<key>ResizeAppleGpuBars</key>
-			<integer>-1</integer>
+			<integer>0</integer>
 			<key>SetupVirtualMap</key>
 			<false/>
 			<key>SignalAppleOS</key>
