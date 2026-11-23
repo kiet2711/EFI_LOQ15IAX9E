@@ -12,7 +12,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 | **CPU** | Intel Core i5-12450HX (12th Gen) | Hoạt động | `CpuTopologyRebuild` + `CpuTscSync` |
 | **iGPU** | Intel UHD Graphics (`8086:468B`, rev `0x0C`) | Hoạt động | `WhateverXe 0.8.3` (patched), Metal 2, 1536 MB, chỉnh sáng `AppleBacklightDisplay` |
 | **dGPU** | NVIDIA RTX (tắt bằng SSDT) | Đã vô hiệu hóa | `SSDT-Disable_GPU_PEG1.aml` |
-| **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) | Hoạt động | Hỗ trợ PWM backlight & chế độ eDP nội bộ |
+| **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) | Hoạt động | Hỗ trợ `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)), PWM backlight & eDP 4 lane |
 | **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `AirportItlwm 2.4.0` (Sequoia `24.2.0`–`24.99.99`) |
 | **Bluetooth** | Intel Wireless Bluetooth (`8087:0026`) | Hoạt động | `IntelBluetoothFirmware 2.5.0` + `IntelBTPatcher 2.5.0` + `BlueToolFixup 2.7.3` |
 | **Âm thanh** | Intel Audio (`8086:7AE0` / `AppleALC`, `layout-id = 18`) | Hoạt động | Loa ngoài, tai nghe, mic tích hợp |
@@ -122,10 +122,40 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
      *(Nếu macOS yêu cầu xác nhận System Extension trong Privacy & Security / xây lại kernel cache, làm theo hướng dẫn hiện trên màn hình).*
    - Đổi lại file **`config.plist`** về bản WhateverXe chính (`config-wex.plist` -> `config.plist`).
    - Khởi động lại, tại menu OpenCore chọn **Reset NVRAM** 1 lần rồi boot vào macOS -> kiểm tra **About This Mac** báo `Intel UHD Graphics 1536 MB` là hoàn tất.
+5. **Bật tần số quét 144 Hz / 120 Hz cho màn hình nội bộ (nếu cần):**
+   - Chạy script có sẵn trong repo rồi Restart (chi tiết xem [Mục 5](#5-kích-hoạt-màn-hình-144-hz--120-hz-boe-ne156fhm-nx9)):
+     ```zsh
+     ./display-144hz/install-144hz.sh
+     ```
 
 ---
 
-## 5. Mẹo tối ưu Sleep & Chuột ngoài
+## 5. Kích hoạt màn hình 144 Hz / 120 Hz (`BOE NE156FHM-NX9`)
+
+- **Nguyên nhân mặc định chỉ hiện 60 Hz:** Panel `BOE NE156FHM-NX9` (`DisplayVendorID=0x09e5`, `DisplayProductID=0x0c29`) đặt timing `60.00 Hz` (`144.52 MHz`) ở Base Block `DTD #0`, còn timing `144.00 Hz` (`346.85 MHz`) nằm trong block mở rộng `0x70` (DisplayID `2.0`, tag `0x22`) nên `CoreDisplay` trên macOS bỏ qua.
+- **Cách khắc phục trong repo ([`display-144hz/`](display-144hz/)):**
+  - [`display-144hz/DisplayProductID-c29`](display-144hz/DisplayProductID-c29): File Display Override chứa EDID `128 byte` hợp lệ (giữ nguyên ID BOE `9e5:c29`, đặt **`60.00 Hz` ở `DTD #0`** để luôn boot an toàn, thêm **`144.00 Hz` ở `DTD #1`** (`346.85 MHz`) và **`120.00 Hz` ở `DTD #2`** (`289.04 MHz`), cùng dải tần gốc `48–144 Hz`).
+  - Driver `AppleIntelTGLGraphicsFramebuffer` + `WhateverXe` tự nâng kết nối eDP từ `2 lane` lên **`4 lane HBR (2.7 Gbps/lane)`** (`24 bpp / 8 bpc`) khi chuyển sang `144 Hz`.
+- **Cài đặt (chỉ sửa `/Library/Displays/...` trên phân vùng Data, không sửa EFI):**
+  ```zsh
+  chmod +x display-144hz/*.sh
+  ./display-144hz/install-144hz.sh
+  ```
+  Sau đó **Restart**, vào **System Settings -> Displays** và chọn **144 Hz** (nếu màn hình đen bất thường, giữ nguyên 15 giây macOS sẽ tự quay về 60 Hz).
+- **Kiểm tra 144 Hz thật ở mức phần cứng:**
+  ```zsh
+  swift -e 'import AppKit; print("MaxFPS:", NSScreen.main?.maximumFramesPerSecond ?? 0)'
+  ioreg -r -c AppleIntelFramebuffer | grep -E "IOFBCurrentPixelClock|IOFBCurrentPixelCount"
+  ```
+  *(Đạt chuẩn khi `MaxFPS: 144` và `IOFBCurrentPixelClock = 346850000`.)*
+- **Lưu ý khi cập nhật / cài lại macOS & cách gỡ:**
+  - Cập nhật macOS OTA thông thường **thường giữ nguyên** file trong `/Library/Displays/Contents/Resources/Overrides/` (nằm trên phân vùng Data `/System/Volumes/Data`).
+  - Nếu **cài trắng lại macOS** (xóa phân vùng Data), chạy lại `./display-144hz/install-144hz.sh` sau khi cài xong.
+  - Nếu muốn **gỡ bỏ**, chạy `./display-144hz/uninstall-144hz.sh` rồi Restart.
+
+---
+
+## 6. Mẹo tối ưu Sleep & Chuột ngoài
 
 - **Tắt Hibernate để Sleep/Wake ổn định hơn trên macOS:**
   ```zsh
