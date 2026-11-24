@@ -1,6 +1,13 @@
-# OpenCore EFI — Lenovo LOQ 15IAX9E (83LK)
+# OpenCore EFI — Lenovo LOQ 15IAX9E (83LK) · Dual GPU (`Intel UHD` + `NVIDIA RTX 3050`)
 
-Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt động trên **macOS Sequoia 15.8.1 (24H32)** với tăng tốc đồ họa **Intel UHD Graphics (`0x468B`, Metal 2, 1536 MB VRAM)** qua **WhateverXe** bản vá cho Alder Lake-HX và đầy đủ **Bluetooth Intel (`2.5.0`)**.
+Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt động song song **2 GPU cùng lúc** trên **macOS Sequoia 15.8.1 (24H32)**:
+- **iGPU Intel UHD Graphics (`0x468B`, Metal 2, 1536 MB VRAM)** qua **WhateverXe 0.8.3** (bản vá cho Alder Lake-HX) phụ trách màn hình laptop (`BOE NE156FHM-NX9`, hỗ trợ `144 Hz`).
+- **dGPU NVIDIA GeForce RTX 3050 6GB Laptop GPU (`10DE:25AC`, Metal 3, 6 GB VRAM)** qua **NullMoth (`v3.1` / `1401.app`)** + bản vá ACPI `SSDT-PEG1-KeepPower.aml` nhận thẳng lúc boot, phụ trách tăng tốc Metal 3 / tính toán và xuất màn hình ngoài qua **HDMI**.
+
+> **Lưu ý về các nhánh trong repo:**
+> - `main`: Cấu hình chỉ dùng Intel UHD (`SSDT-Disable_GPU_PEG1.aml` tắt dGPU).
+> - `airdrop`: Cấu hình Intel-only có AirDrop (`ForbiddenItlwm` + `BTLEAdvFixup`) + map USB.
+> - `dual-gpu-rtx3050` *(nhánh này)*: Cấu hình **Dual GPU chạy song song cả Intel UHD và RTX 3050** + AirDrop + 144 Hz.
 
 ---
 
@@ -11,11 +18,11 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 | **Máy** | Lenovo LOQ 15IAX9E (`83LK`) | Hoạt động | SMBIOS `MacBookPro16,2` |
 | **CPU** | Intel Core i5-12450HX (12th Gen) | Hoạt động | `CpuTopologyRebuild` + `CpuTscSync` |
 | **iGPU** | Intel UHD Graphics (`8086:468B`, rev `0x0C`) | Hoạt động | `WhateverXe 0.8.3` (patched), Metal 2, 1536 MB, chỉnh sáng `AppleBacklightDisplay` |
-| **dGPU** | NVIDIA RTX (tắt bằng SSDT) | Đã vô hiệu hóa | `SSDT-Disable_GPU_PEG1.aml` |
-| **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) | Hoạt động | Hỗ trợ `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)), PWM backlight & eDP 4 lane |
+| **dGPU** | NVIDIA GeForce RTX 3050 6GB Laptop GPU (`10DE:25AC`, sub `17AA:3DA0`, PCIe `x8`) | Hoạt động song song | `SSDT-PEG1-KeepPower.aml` + `NullMoth v3.1` (`NVRM`/`NVAccel`/`NVRMFB`/`NVRMAGDC`), Metal 3, 6 GB VRAM, xuất HDMI |
+| **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) + HDMI ngoài | Hoạt động | Màn trong `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)) trên Intel UHD; HDMI ngoài trên RTX 3050 |
 | **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `ForbiddenItlwm 0.6.0-beta.4` (bật AirDrop/AWDL trên Sequoia `24.0.0`–`24.99.99`), kèm dự phòng `AirportItlwm 2.4.0` |
 | **Bluetooth** | Intel Wireless Bluetooth (`8087:0026`) | Hoạt động | `IntelBluetoothFirmware 2.5.0` + `BlueToolFixup 2.7.3` + `BTLEAdvFixup 0.9.4` *(tắt `IntelBTPatcher` để tránh xung đột)* |
-| **Âm thanh** | Intel Audio (`8086:7AE0` / `AppleALC`, `layout-id = 18`) | Hoạt động | Loa ngoài, tai nghe, mic tích hợp |
+| **Âm thanh** | Intel Audio (`8086:7AE0` / `AppleALC`, `layout-id = 18`) | Hoạt động | Loa ngoài, tai nghe, mic tích hợp (kèm node audio HDMI GPU `10DE:2291`) |
 | **Mạng dây** | Realtek RTL8168H/8111H Gigabit Ethernet | Hoạt động | `RealtekRTL8111 3.0.0` |
 | **Touchpad / Phím** | I2C HID (`Magic Trackpad 2`) + PS/2 Keyboard | Hoạt động | `VoodooI2C 2.9.1` + `VoodooI2CHID 1.0` + `VoodooPS2Controller 2.3.8` |
 | **NVMe** | `SAMSUNG MZAMX512HCLV-00BL2` (`512 GB`) | Hoạt động | `NVMeFix 1.1.4` |
@@ -27,11 +34,13 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ## 2. Danh sách những thứ cần tải & Công cụ hỗ trợ
 
-### A. Driver đồ họa rời & Bộ cài macOS (Bắt buộc khi cài mới)
+### A. Driver đồ họa (Intel iGPU + NVIDIA dGPU) & Bộ cài macOS
 
 | Thành phần | Mục đích | Link tải chính thức |
 | --- | --- | --- |
-| **WhateverXe Graphics (`0.4.4+`)** | Gói `.pkg` cài `AppleIntelTGLCompat`, `AppleIntelTGLGraphics*` vào `/Library/Extensions` & `/Library/GPUBundles` (kèm script gỡ `uninstall.sh`) | [b00t0x/WhateverXe-Graphics Releases](https://github.com/b00t0x/WhateverXe-Graphics/releases) |
+| **WhateverXe Graphics (`0.4.4+`)** | Gói `.pkg` cài `AppleIntelTGLCompat`, `AppleIntelTGLGraphics*` cho iGPU Intel vào `/Library/Extensions` & `/Library/GPUBundles` | [b00t0x/WhateverXe-Graphics Releases](https://github.com/b00t0x/WhateverXe-Graphics/releases) |
+| **NullMoth NVIDIA Driver + 1401 (`v3.1+`)** | Driver RTX 3050 cho macOS (`NVRM`, `NVAccel`, `NVRMFB`, `NVRMAGDC`, `NVMTLDriver`) — tải `1401-Mac-3.1.zip`, `nullmoth-nvidia-3.1.tar.gz`, `SHA256SUMS.txt` | [nullmoth/nvidia-macos-driver Releases](https://github.com/nullmoth/nvidia-macos-driver/releases) |
+| **NVIDIA Linux Runfile (`620.70.06`)** | Cung cấp GSP firmware (`gsp_ga10x.bin`, `ucodes_ga10x.bin`) đúng mã pin của NullMoth `v3.1` — đặt cùng thư mục `~/Downloads` với `nullmoth-nvidia-3.1.tar.gz` | [NVIDIA Linux x86_64 620.70.06](https://us.download.nvidia.com/XFree86/Linux-x86_64/620.70.06/NVIDIA-Linux-x86_64-620.70.06.run) |
 | **gibMacOS** | Tải trực tiếp `InstallAssistant.pkg` / bản Recovery macOS từ Windows hoặc macOS | [corpnewt/gibMacOS](https://github.com/corpnewt/gibMacOS) |
 | **Mist** *(trên macOS)* | Tải bộ cài macOS (`InstallAssistant.pkg` / `.app`) dễ dùng trên macOS | [ninxsoft/Mist Releases](https://github.com/ninxsoft/Mist/releases) |
 | **UnPlugged** | Tạo bộ cài macOS offline không cần mạng từ `InstallAssistant.pkg` trên USB/SSD cài đặt | [corpnewt/UnPlugged](https://github.com/corpnewt/UnPlugged) |
@@ -54,18 +63,19 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 | Ứng dụng / Công cụ | Mục đích | Link tải chính thức |
 | --- | --- | --- |
 | **Hackintool** | Kiểm tra PCI ID, iGPU/Metal, USB port, kext đang nạp, NVRAM | [benbaker76/Hackintool Releases](https://github.com/benbaker76/Hackintool/releases) |
-| **IORegistryExplorer** | Xem cây IORegistry (`IORegistryClone`) để debug phần cứng/backlight | [khronokernel/IORegistryClone](https://github.com/khronokernel/IORegistryClone) |
+| **IORegistryExplorer** | Xem cây IORegistry (`IORegistryClone`) để debug phần cứng/PCIe/GPU | [khronokernel/IORegistryClone](https://github.com/khronokernel/IORegistryClone) |
 | **MaciASL** | Xem, sửa & biên dịch file ACPI `.dsl` / `.aml` | [acidanthera/MaciASL Releases](https://github.com/acidanthera/MaciASL/releases) |
 | **Mos** | Đảo riêng hướng cuộn chuột ngoài (giữ nguyên Touchpad) và làm mượt cuộn | [Caldis/Mos Releases](https://github.com/Caldis/Mos/releases) |
 | **LinearMouse** | *(Thay thế Mos)* Tùy chỉnh hướng cuộn, tốc độ & bỏ gia tốc chuột ngoài | [linearmouse/linearmouse Releases](https://github.com/linearmouse/linearmouse/releases) |
 | **LocalSend** | Gửi/nhận file qua Wi-Fi/LAN giữa macOS, Windows, iOS/Android thay thế AirDrop | [localsend/localsend Releases](https://github.com/localsend/localsend/releases) |
 
-### D. Nguồn gốc các Kext đang dùng trong EFI *(dùng khi muốn cập nhật phiên bản mới)*
+### D. Nguồn gốc các Kext đang dùng trong EFI
 
 - **Core & Đồ họa:**
   - `Lilu 1.7.3`: https://github.com/acidanthera/Lilu/releases
   - `AMFIAnchor 0.1.2` + `AMFIAnchorInjector 1.0.0`: https://github.com/b00t0x/AMFIAnchor/releases
-  - `WhateverXe 0.8.3` *(repo này dùng bản tự build có patch cho Lenovo LOQ ADL-HX)*: https://github.com/b00t0x/WhateverXe/releases
+  - `AMFIPass 1.4.1` *(bắt buộc đi kèm NullMoth)*: https://github.com/dhinakg/AMFIPass/releases
+  - `WhateverXe 0.8.3` *(bản tự build có patch cho Lenovo LOQ ADL-HX)*: https://github.com/b00t0x/WhateverXe/releases
   - `WhateverGreen` *(dùng cho file dự phòng `config-safe-7mb.plist`)*: https://github.com/acidanthera/WhateverGreen/releases
   - `BrightnessKeys 1.0.4`: https://github.com/acidanthera/BrightnessKeys/releases
 - **CPU / Nguồn / NVMe / SMC:**
@@ -77,8 +87,8 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
   - `RestrictEvents 1.1.7`: https://github.com/acidanthera/RestrictEvents/releases
 - **Mạng, Bluetooth & AirDrop:**
   - `ForbiddenItlwm 0.6.0-beta.4` *(bật AirDrop/AWDL trên Sequoia `24.0.0`–`24.99.99`)* & `BTLEAdvFixup 0.9.4`: https://github.com/retropineaple/ForbiddenItlwm/releases
-  - `AirportItlwm 2.4.0` *(bản dự phòng không AirDrop cho Sequoia `24.2.0`+, của laobamac)*: https://github.com/laobamac/itlwm/releases *(repo gốc: https://github.com/OpenIntelWireless/itlwm/releases)*
-  - `IntelBluetoothFirmware 2.5.0` & `IntelBTPatcher 2.5.0` *(build từ nhánh `master` cho Sequoia `24.x`)*: https://github.com/OpenIntelWireless/IntelBluetoothFirmware/releases
+  - `AirportItlwm 2.4.0` *(bản dự phòng không AirDrop cho Sequoia `24.2.0`+)*: https://github.com/laobamac/itlwm/releases *(repo gốc: https://github.com/OpenIntelWireless/itlwm/releases)*
+  - `IntelBluetoothFirmware 2.5.0` & `IntelBTPatcher 2.5.0`: https://github.com/OpenIntelWireless/IntelBluetoothFirmware/releases
   - `BrcmPatchRAM` (`BlueToolFixup 2.7.3`): https://github.com/acidanthera/BrcmPatchRAM/releases
   - `RealtekRTL8111 3.0.0`: https://github.com/Mieze/RTL8111_driver_for_OS_X/releases
 - **Âm thanh, Bàn phím, Touchpad & USB:**
@@ -89,56 +99,77 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 
 ---
 
-## 3. Điểm khác biệt & bản vá quan trọng trong repo này
+## 3. Điểm khác biệt & bản vá quan trọng trong nhánh Dual GPU
 
-1. **Bản vá `WhateverXe 0.8.3` cho Lenovo LOQ 12th/13th Gen HX (`0x468B` / `0x4688`):**
-   - Xem file patch nguồn tại [`patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch`](patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch).
-   - Bỏ kiểm tra bit fuse `0x42000 & 0x01000000` (luôn bằng `0` trên dòng HX dù PG1 `0x45404 & 1` và mạch PWM vẫn hoạt động), tránh lỗi đen màn `0xe00002d8` (`LightUpEDP` / `DDI0`).
-   - Thêm `wrapADLSCDClockProbe` để lập trình lại CDCLK hợp lệ (`disableCDClock` + `setCDClockFrequency`) khi UEFI GOP để tần số ngoài bảng Apple.
-   - Thêm `wrapADLSSetMode` để đảm bảo nguồn panel (`hwSetPanelPower(2)`), CDCLK PLL, DBUF (`0x45008`/`0x44FE8`) và `AUX A` (`0x45444`) được bật trước `hwSetMode`.
-   - Thêm boot-arg `-nodisplaysleepDC6` trong `config.plist` (`-allow3d -disablegfxfirmware -igfxdvmt -nodisplaysleepDC6 keepsyms=1` trước khi nối các cờ AirDrop).
+1. **Kích hoạt `PEG1` / `PEGP` (`RTX 3050 10DE:25AC`) nhận thẳng khi boot (`SSDT-PEG1-KeepPower.aml`):**
+   - Trên Lenovo LOQ 15IAX9E, `SSDT-8.aml` gốc của hãng khởi tạo các gói chân GPIO (`RSTG`, `PWRG`, `WAKG`, `P1WK`) bằng lệnh `Store`/`Index` ở cấp module (module-level), khiến `AppleACPIPlatform` báo lỗi `AE_ERROR` và để trống `{0, 0}`, làm `PEG1` bị cắt nguồn ngay lúc boot (`PEGP` chỉ hiện sau khi Sleep/Wake).
+   - `EFI/OC/ACPI/SSDT-PEG1-KeepPower.aml` kết hợp **6 ACPI Patch** trong `config.plist` (`PXP_ _OFF->XOFF`, `POFF->XPOF`, `PEGP _OFF->XOFF`, `DL23->XL23`, `PEG1 _STA->XSTA`, `PC00 GC6I->X6CI`) giúp:
+     - Nạp lại `RSTG`, `PWRG`, `WAKG`, `P1WK` từ `GNVS` (`P1RE`/`P1RP`/`P1PE`/`P1PP`/`P1WP`) hợp lệ qua `\_SB_.PC00.PEG1.GINI`.
+     - Chặn `GC6I` và các hàm `_OFF`/`POFF`/`DL23` tắt nguồn PCIe khi chạy Darwin (`macOS`).
+     - Ép mở nguồn khe `PEG1`, đặt `SCB0 = 1` trước khi gọi `L23D()`, bật Bus Master / Memory space (`CMDR = 7`) và chờ `PEGP.NVID == 0x10DE` ngay khi khởi động (`_INI`).
+   - `Booter -> Quirks -> ResizeAppleGpuBars = 0` (`64 MB`) để cấp phát BAR cho cả Intel UHD và RTX 3050 cùng lúc.
 
-2. **Bluetooth Intel trên macOS Sequoia (`24.x`):**
-   - Dùng `IntelBluetoothFirmware.kext` (`2.5.0`) + `BlueToolFixup.kext` (`2.7.3`), kèm **`BTLEAdvFixup.kext` (`0.9.4`)** nạp **sau `BlueToolFixup`** để bật Bluetooth LE advertising cho AirDrop.
-   - Khi dùng `BTLEAdvFixup.kext`, **`IntelBTPatcher.kext` (`2.5.0`) phải để `Enabled = False`** (vì cả hai cùng hook cùng hàm USB Bluetooth trên macOS — bật song song sẽ gây kernel panic; kext vẫn được giữ sẵn trong `EFI/OC/Kexts/` cho `config-no-airdrop.plist` / `config-safe-7mb.plist`).
-   - Thứ tự kext trong `Kernel -> Add`: `Lilu` -> `IntelBluetoothFirmware` -> `IntelBTPatcher` *(tắt)* -> `BlueToolFixup` -> `BTLEAdvFixup`.
-   - NVRAM đã khai báo sẵn `bluetoothExternalDongleFailed` và `bluetoothInternalControllerInfo` (trong cả `Add` và `Delete`).
+2. **Chạy song song `WhateverXe` (iGPU) + `NullMoth` (dGPU) & Cứu hộ OpenCore:**
+   - Thêm **`AMFIPass.kext` (`1.4.1`)** song song với `AMFIAnchor` + `AMFIAnchorInjector` + `WhateverXe 0.8.3`.
+   - Giữ `IONDRVSupport` không bị chặn để màn hình nội bộ (`BOE NE156FHM-NX9`) chạy qua Intel UHD, còn cổng HDMI ngoài xuất qua `NVRMFramebuffer` của RTX 3050.
+   - Bổ sung bộ boot-args của NullMoth vào `config.plist`:
+     `nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0`.
+   - Bổ sung **`EFI/OC/Tools/NullMothSafe.efi`** vào `Misc -> Tools` với 2 tuỳ chọn ngay trên OpenCore Boot Picker:
+     - **`1401: Start once without NVIDIA driver`** (boot 1 lần không nạp driver NVIDIA nếu gặp sự cố).
+     - **`1401: Remove NVIDIA driver`** (gỡ driver NullMoth từ menu boot nếu macOS không vào được desktop).
+   - *(Lưu ý: `Misc -> Debug -> Target` trên repo được đặt về `0` để không sinh log rác lên phân vùng ESP; đổi sang `67` nếu cần debug boot).*
 
-3. **AirDrop / AWDL trên Wi-Fi Intel (`ForbiddenItlwm 0.6.0-beta.4`):**
-   - Thay thế `AirportItlwm.kext` (`Enabled = False`) bằng **`ForbiddenItlwm.kext` (`0.6.0-beta.4`)** với `MinKernel = 24.0.0`, `MaxKernel = 24.99.99` (giới hạn trong phạm vi Sequoia `24.x`, tránh vô tình nạp nhầm nếu cập nhật lên Tahoe `25.x`).
-   - Bộ 18 cờ `boot-args` kiểm thử cho AirDrop (`-btleadv`, `-itlawdlcoexprobe`, `itlawdlintcoal=4`, `itlawdltxqueue=4096`, ...) đã được thêm sẵn vào `EFI/OC/config.plist` (tổng độ dài `360` ký tự, dưới giới hạn `1024` của macOS).
+3. **Bản vá `WhateverXe 0.8.3` cho Lenovo LOQ ADL-HX (`0x468B`):**
+   - Xem [`patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch`](patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch) (bỏ fuse `0x42000 & 0x01000000`, thêm `wrapADLSCDClockProbe`, `wrapADLSSetMode`, và cờ `-nodisplaysleepDC6`).
+
+4. **AirDrop / AWDL & Bluetooth Intel trên macOS Sequoia (`24.x`):**
+   - Dùng `ForbiddenItlwm.kext` (`0.6.0-beta.4`, `MinKernel = 24.0.0`, `MaxKernel = 24.99.99`) + `IntelBluetoothFirmware 2.5.0` + `BlueToolFixup 2.7.3` + `BTLEAdvFixup 0.9.4` *(giữ `IntelBTPatcher` tắt `Enabled = False`)*.
 
 ---
 
-## 4. Hướng dẫn cài mới từ đầu từng bước
+## 4. Hướng dẫn cài đặt & kích hoạt Dual GPU từ đầu
 
-1. **Tạo SMBIOS riêng:**
-   - Các trường `MLB`, `SystemSerialNumber`, `SystemUUID`, `ROM` trong `EFI/OC/config.plist`, `EFI/OC/config-no-airdrop.plist` và `EFI/OC/config-safe-7mb.plist` đã được ẩn bằng giá trị mẫu để bảo mật.
-   - Dùng **GenSMBIOS** chọn kiểu máy **`MacBookPro16,2`**, mở file `.plist` bằng **ProperTree** và điền vào `PlatformInfo -> Generic` (nên đặt `ROM` là địa chỉ MAC cổng Ethernet thật dạng 6 byte hex nếu cần iServices).
-2. **Chuẩn bị phân vùng boot EFI (`FAT32`):**
-   - Chép toàn bộ thư mục `EFI` vào gốc phân vùng ESP `FAT32` (dùng **DiskGenius** trên Windows hoặc **MountEFI** / `diskutil` trên macOS).
-3. **Cài đặt macOS lần đầu (dùng chế độ an toàn 7MB trước):**
-   - Trong `EFI/OC/` có sẵn **`config-safe-7mb.plist`** (boot VESA 7MB an toàn, dùng `AirportItlwm 2.4.0` + Bluetooth `2.5.0` tiêu chuẩn).
-   - Nếu ổ đích macOS chưa cài `WhateverXe-Graphics-0.4.4.pkg`, hãy tạm đổi tên `config.plist` -> `config-wex.plist` và copy `config-safe-7mb.plist` -> `config.plist` để cài xong macOS và vào được màn hình chính.
-4. **Cài gói Graphics & bật WhateverXe:**
-   - Khi đã vào macOS, cài `WhateverXe-Graphics-0.4.4.pkg`:
-     ```zsh
-     sudo installer -pkg WhateverXe-Graphics-0.4.4.pkg -target /
-     ```
-     *(Nếu macOS yêu cầu xác nhận System Extension trong Privacy & Security / xây lại kernel cache, làm theo hướng dẫn hiện trên màn hình).*
-   - Đổi lại file **`config.plist`** về bản WhateverXe chính (`config-wex.plist` -> `config.plist` — bản này đã bật sẵn AirDrop `ForbiddenItlwm 0.6.0-beta.4` + `BTLEAdvFixup 0.9.4`).
-   - Khởi động lại, tại menu OpenCore chọn **Reset NVRAM** 1 lần rồi boot vào macOS -> kiểm tra **About This Mac** báo `Intel UHD Graphics 1536 MB` và test AirDrop ở [Mục 6](#6-kích-hoạt--gỡ-airdrop-forbiddenitlwm--btleadvfixup).
-5. **Bật tần số quét 144 Hz / 120 Hz cho màn hình nội bộ (nếu cần):**
-   - Chạy script có sẵn trong repo rồi Restart (chi tiết xem [Mục 5](#5-kích-hoạt-màn-hình-144-hz--120-hz-boe-ne156fhm-nx9)):
-     ```zsh
-     ./display-144hz/install-144hz.sh
-     ```
-6. **Nếu đang dùng EFI cũ (chưa có AirDrop) và muốn cập nhật trực tiếp mà giữ nguyên SMBIOS:**
-   - Chạy script trong thư mục [`airdrop/`](airdrop/) (chi tiết xem [Mục 6](#6-kích-hoạt--gỡ-airdrop-forbiddenitlwm--btleadvfixup)):
-     ```zsh
-     chmod +x airdrop/*.sh airdrop/*.py
-     ./airdrop/install-airdrop.sh
-     ```
+> **Cảnh báo SMBIOS:** Nhánh cá nhân này giữ nguyên thông số SMBIOS thực tế trong `config.plist`. Nếu bạn áp dụng cho máy khác hoặc đưa lên repo công khai, hãy dùng **GenSMBIOS** tạo `SystemSerialNumber`, `MLB`, `SystemUUID`, `ROM` mới (`MacBookPro16,2`) trước khi dùng.
+
+### Bước 1: Chuẩn bị BIOS & phân vùng EFI
+1. Trong BIOS máy Lenovo LOQ 15IAX9E, để chế độ đồ hoạ là **Switchable Graphics / Dynamic Graphics** (không chọn mode tắt hẳn card rời).
+2. Chép toàn bộ thư mục [`EFI/`](EFI/) vào gốc phân vùng ESP `FAT32` (dùng **DiskGenius** trên Windows hoặc **MountEFI** / `diskutil` trên macOS).
+
+### Bước 2: Nếu cài mới macOS lần đầu (chưa cài `WhateverXe-Graphics` và `1401`)
+1. Tạm sao lưu `EFI/OC/config.plist` thành `EFI/OC/config-dual-gpu.plist`, rồi copy `EFI/OC/config-safe-7mb.plist` thành `EFI/OC/config.plist` để boot chế độ VESA 7MB cài macOS.
+2. Sau khi vào macOS, cài gói iGPU **`WhateverXe-Graphics-0.4.4.pkg`**:
+   ```zsh
+   sudo installer -pkg WhateverXe-Graphics-0.4.4.pkg -target /
+   ```
+   *(Xác nhận System Extension trong **System Settings -> Privacy & Security** nếu macOS yêu cầu).*
+3. Đổi `EFI/OC/config-dual-gpu.plist` lại thành `EFI/OC/config.plist`, **Restart** và chọn **Reset NVRAM** 1 lần ở menu OpenCore.
+4. Khi vào lại macOS, kiểm tra **System Information -> Graphics/Displays** đã thấy đồng thời cả **Intel UHD Graphics (`1536 MB`, Metal 2)** và thiết bị PCIe **NVIDIA (`0x10de:0x25ac`)** trước khi sang Bước 3.
+
+### Bước 3: Cài driver NVIDIA RTX 3050 (`NullMoth v3.1` / `1401.app`)
+1. Tải về `~/Downloads` 3 file sau (giữ cùng thư mục để `1401` tự động nhận firmware):
+   - `1401-Mac-3.1.zip` -> giải nén và chép `1401.app` vào `/Applications/`
+   - `nullmoth-nvidia-3.1.tar.gz` (kèm `SHA256SUMS.txt` nếu kiểm tra thủ công)
+   - `NVIDIA-Linux-x86_64-620.70.06.run`
+2. Mở **`/Applications/1401.app`**, chọn gói `nullmoth-nvidia-3.1.tar.gz` để cài driver (`NVRM`, `NVAccel`, `NVRMFB`, `NVRMAGDC`, `NVMTLDriver.bundle` và firmware `620.70.06`). *(EFI trên nhánh này đã tích hợp sẵn `SSDT-PEG1-KeepPower.aml`, `AMFIPass.kext`, `ResizeAppleGpuBars=0`, boot-args và `NullMothSafe.efi`).*
+3. **Restart** máy. Nếu lần boot đầu macOS hỏi cấp quyền mở rộng kernel trong **System Settings -> Privacy & Security**, bấm **Allow** rồi **Restart** thêm 1 lần nữa.
+
+### Bước 4: Kiểm tra 2 GPU hoạt động song song
+Mở Terminal chạy:
+```zsh
+system_profiler SPDisplaysDataType
+kmutil showloaded | grep -iE 'nullmoth|nvrm|whatever|tgl|amfi'
+/Applications/1401.app/Contents/Resources/nullmoth-metal-devices
+```
+Kết quả chuẩn sẽ hiện đầy đủ cả **Intel UHD Graphics (Metal 2)** phụ trách màn laptop `BOE NE156FHM-NX9` lẫn **NVIDIA GeForce RTX 3050 6GB Laptop GPU (Metal 3)** phụ trách màn hình qua `NVRMFramebuffer` / HDMI.
+
+### Bước 5: Mẹo dùng 2 màn hình & xử lý sự cố
+- **Chọn GPU mặc định theo màn hình chính:**
+  - Màn hình laptop dùng Intel UHD; cổng **HDMI** xuất qua RTX 3050.
+  - Nếu muốn màn hình ngoài HDMI làm màn chính (`Main display`) và khiến `MTLCreateSystemDefaultDevice()` ưu tiên RTX 3050 cho toàn hệ thống: vào **System Settings -> Displays** -> chọn màn ngoài -> **Use as: Main display** *(hoặc kéo thanh menu trắng trong **Arrange...** sang màn ngoài)*.
+- **Nếu chạy Xcode iOS Simulator bị lỗi hiển thị/nhấp nháy trên RTX 3050:**
+  - Trong **Simulator**, chọn **File -> GPU Selection -> Prefer Integrated GPU** rồi tắt hẳn Simulator (`⌘Q`) và mở lại để riêng Simulator chạy trên Intel UHD trong khi các app khác vẫn dùng RTX 3050.
+- **Cứu hộ khi không boot vào được desktop:**
+  - Chọn **`1401: Start once without NVIDIA driver`** hoặc **`1401: Remove NVIDIA driver`** ngay tại màn hình boot OpenCore (`NullMothSafe.efi`), hoặc chuyển tạm về `config-safe-7mb.plist`.
 
 ---
 
@@ -170,24 +201,18 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 ## 6. Kích hoạt & Gỡ AirDrop (`ForbiddenItlwm` + `BTLEAdvFixup`)
 
 - **Cơ chế:** Dùng `ForbiddenItlwm.kext` (`0.6.0-beta.4`) để dựng giao diện `awdl0` cùng `BTLEAdvFixup.kext` (`0.9.4`) để vá Bluetooth LE advertising trên macOS Sequoia (`15.8.1`), thay cho `AirportItlwm 2.4.0` + `IntelBTPatcher 2.5.0`.
-- **Nếu cài mới từ repo:** `EFI/OC/config.plist` đã bật sẵn AirDrop (chỉ cần điền SMBIOS). Bản không AirDrop được lưu dự phòng tại `EFI/OC/config-no-airdrop.plist`.
+- **Nếu cài mới từ repo:** `EFI/OC/config.plist` đã bật sẵn AirDrop. Bản không AirDrop được lưu dự phòng tại `EFI/OC/config-no-airdrop.plist`.
 - **Nếu cập nhật lên EFI `OPENCORE` đang chạy (giữ nguyên SMBIOS hiện tại):**
   ```zsh
   chmod +x airdrop/*.sh airdrop/*.py
   ./airdrop/install-airdrop.sh
   ```
-  Script [`airdrop/install-airdrop.sh`](airdrop/install-airdrop.sh) tự tìm phân vùng EFI `OPENCORE`, backup `config-no-airdrop-backup.plist`, chép `ForbiddenItlwm.kext` + `BTLEAdvFixup.kext` (giữ nguyên `AirportItlwm.kext` & `IntelBTPatcher.kext` trên đĩa để rollback), tắt `IntelBTPatcher` & `AirportItlwm`, thêm cờ `boot-args` và chạy `plutil -lint`. Sau khi xong hãy **Restart** máy.
+  Script [`airdrop/install-airdrop.sh`](airdrop/install-airdrop.sh) tự tìm phân vùng EFI `OPENCORE`, backup `config-no-airdrop-backup.plist`, chép `ForbiddenItlwm.kext` + `BTLEAdvFixup.kext`, tắt `IntelBTPatcher` & `AirportItlwm`, thêm cờ `boot-args` và chạy `plutil -lint`. Sau khi xong hãy **Restart** máy.
 - **Kiểm tra sau khi Restart:**
   ```zsh
   ./airdrop/check_compat.sh
   ifconfig awdl0
   ```
-  *(Đã kiểm chứng AirDrop hoạt động thực tế trên máy `LOQ 15IAX9E` / Wi-Fi `8086:7AF0` (`iwlwifi-so-a0-hr-b0-68.ucode`) / `macOS 15.8.1 (24H32)`: `ForbiddenItlwm 0.6.0` & `BTLEAdvFixup 0.9.4` nạp đầy đủ, `BTLEAdvFixup` khớp `4/4 (patched)`, `awdl0` UP, listener chạy kênh `149 @ 80 MHz`.)*
-- **Lưu ý thực tế & nâng cấp macOS:**
-  - Nếu trong `check_compat.sh` mục 7 báo `net.filter_state = pf` và `enable_netagent = 0` (do quirk `PowerTimeoutKernelPanic = True` trong OpenCore), AirDrop vẫn hoạt động bình thường nhưng tốc độ QUIC có thể chậm hơn tối đa; giữ `PowerTimeoutKernelPanic = True` mặc định để tránh kernel panic khi sleep/wake.
-  - Nếu trên bản macOS khác mà `check_compat.sh` báo `ItlwmAWDLMiState = blocked: build not verified` khiến thiết bị khác không tìm thấy Mac, kiểm tra release mới hơn của `ForbiddenItlwm` (hoặc xem cảnh báo `-itlawdlanybuild` trên repo gốc trước khi dùng).
-  - Nếu muốn thử bản mới hơn (ví dụ `0.7.0-alpha.1` kèm cờ `itlawdlsched=1 -btleadvnodupfilter`), có thể truyền `--alpha --kexts-dir <thư_mục_kext>` cho `./airdrop/install-airdrop.sh`.
-  - ⚠️ **Khi nâng cấp lên macOS Tahoe (`26` / kernel `25.x`):** Bản `ForbiddenItlwm` kèm repo đang đặt `MaxKernel = 24.99.99` (chỉ nạp trên Sequoia), cần cập nhật đúng kext bản Tahoe hoặc tạm chuyển sang `config-no-airdrop.plist` / `./airdrop/revert-airdrop.sh` trước khi nâng cấp.
 - **Gỡ AirDrop & quay lại `AirportItlwm` trong 1 lệnh:**
   ```zsh
   ./airdrop/revert-airdrop.sh
