@@ -59,6 +59,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
 | **Mos** | Đảo riêng hướng cuộn chuột ngoài (giữ nguyên Touchpad) và làm mượt cuộn | [Caldis/Mos Releases](https://github.com/Caldis/Mos/releases) |
 | **LinearMouse** | *(Thay thế Mos)* Tùy chỉnh hướng cuộn, tốc độ & bỏ gia tốc chuột ngoài | [linearmouse/linearmouse Releases](https://github.com/linearmouse/linearmouse/releases) |
 | **LocalSend** | Gửi/nhận file qua Wi-Fi/LAN giữa macOS, Windows, iOS/Android thay thế AirDrop | [localsend/localsend Releases](https://github.com/localsend/localsend/releases) |
+| **OpenKey (`2.0.5+`)** | Bộ gõ Tiếng Việt ổn định thay cho bộ gõ mặc định Apple (kèm script [`keyboard-vn/`](keyboard-vn/)) | [tuyenvm/OpenKey Releases](https://github.com/tuyenvm/OpenKey/releases) |
 
 ### D. Nguồn gốc các Kext đang dùng trong EFI *(dùng khi muốn cập nhật phiên bản mới)*
 
@@ -203,6 +204,23 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** đã thử nghiệm và hoạt �
   sudo pmset -a hibernatemode 0 standby 0 autopoweroff 0 powernap 0
   ```
 - **Chuột ngoài cuộn ngược:** Vào **System Settings -> Mouse** tắt **Natural scrolling**, hoặc cài **Mos** / **LinearMouse** để tách riêng hướng cuộn của chuột ngoài và touchpad.
+
+---
+
+## 8. Sửa lỗi gõ Tiếng Việt, mất chữ & loạn phím số ([`keyboard-vn/`](keyboard-vn/))
+
+- **Nguyên nhân hay gặp trên macOS:**
+  - Nếu để nguồn nhập macOS là **Vietnamese (`Simple Telex`)** chạy chồng với **OpenKey**, hai bộ gõ sẽ đè phím Backspace lên nhau gây mất chữ/sai dấu (như `nhập` -> `nâ`) hoặc kẹt chữ trên trình duyệt Chromium/Electron.
+  - Nếu OpenKey bị chuyển nhầm sang kiểu gõ **VNI** (`InputType = 1`) và bảng mã **VNI Windows** (`CodeTable = 2`), việc nhấn phím số `1–9` sau chữ sẽ kích hoạt bỏ dấu/sửa lại cụm chữ trước đó, đồng thời tắt `FixRecommendBrowser` / `vFixChromiumBrowser` làm rơi ký tự trong trình duyệt và IDE.
+- **Khắc phục nhanh trong 1 lệnh (không cần Restart máy):**
+  1. Cài **OpenKey** ([tuyenvm/OpenKey Releases](https://github.com/tuyenvm/OpenKey/releases)) vào `/Applications/OpenKey.app` và cấp quyền **Accessibility** (`System Settings -> Privacy & Security -> Accessibility`).
+  2. Chạy script [`keyboard-vn/fix-keyboard-vn.sh`](keyboard-vn/fix-keyboard-vn.sh):
+     ```zsh
+     chmod +x keyboard-vn/fix-keyboard-vn.sh
+     ./keyboard-vn/fix-keyboard-vn.sh
+     ```
+     Script sẽ tự động sao lưu cấu hình cũ, chuyển nguồn nhập hệ thống macOS về **`ABC`** (`com.apple.keylayout.ABC`), tắt bộ gõ `VietnameseIM` mặc định của Apple, và cấu hình OpenKey chuẩn **`Telex` + `Unicode` + bật `FixRecommendBrowser` + `vFixChromiumBrowser`**.
+  3. *(Tùy chọn)* Nếu một số app vẫn bị sót phím khi gõ nhanh, chạy `./keyboard-vn/fix-keyboard-vn.sh --step-by-step` (`SendKeyStepByStep = 1`); dùng `--check` để xem trạng thái hoặc `--restore` để khôi phục cấu hình cũ.
 
 ---
 
