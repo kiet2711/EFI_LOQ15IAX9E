@@ -10,8 +10,8 @@
 #
 # The verdict is an estimate. The project tests the AX211 (firmware so-a0-gf-a0-68) on macOS 26.7.1
 # (25G241); 26.7.2 (25G332) and 26.7.3 (25G342) were verified offline. On Sequoia, 15.8 (24H23) and 15.8.3
-# (24H241) were verified offline for the separate Sequoia kexts; 15.8.1 (24H32) and 15.8.2 (24H232) run
-# verified kernels. Users report AirDrop working with the AX201, AX200, AX210 and AX411 class (see
+# (24H241) were verified offline for the separate Sequoia kexts, and from 0.7.0-alpha.2 15.8.1 (24H32),
+# 15.8.2 (24H230, 24H232) and 15.7.3, 15.7.4, 15.7.8 and 15.7.9 too (Apple's Kernel Debug Kits). Users report AirDrop working with the AX201, AX200, AX210 and AX411 class (see
 # docs/TESTED-HARDWARE.md). Everything else is predicted from the firmware's capabilities and the code.
 
 set -u
@@ -52,35 +52,49 @@ if [ "$ARCH" != "x86_64" ]; then
     BLOCKERS=$((BLOCKERS + 1))
 fi
 OS_MAJOR=${OS_VER%%.*}
-# Builds the driver allows AirDrop on (ForbiddenItlwm/AWDLBuildGuard.cpp): 25G241 tested on
-# hardware, 25G332 and 25G342 verified offline from Apple's Kernel Debug Kits.
+# Builds the driver allows AirDrop on (include/AWDLBuildGuard.hpp): 25G241 tested on hardware, the others
+# verified offline from Apple's Kernel Debug Kits (25G229 and 25G330 from 0.7.0-alpha.2).
 OFFLINE_BUILDS="25G332 25G342"
 if [ "$OS_BUILD" = "$TESTED_BUILD" ]; then
     pass "Same build as the tested one ($TESTED_VERSION, $TESTED_BUILD)."
+elif [ "$OS_BUILD" = "25G422" ]; then
+    pass "macOS $OS_VER ($OS_BUILD, a 26.7.4 beta): on the list from 0.7.0-alpha.3, from a user's check-my-mac report;"
+    warn "the final 26.7.4 may be another build. 0.7.0-alpha.2 and older keep AirDrop off here."
+elif [ "$OS_BUILD" = "25G229" ] || [ "$OS_BUILD" = "25G330" ]; then
+    pass "macOS $OS_VER ($OS_BUILD): its Wi-Fi stack was checked offline and is supported from 0.7.0-alpha.2;"
+    warn "0.7.0-alpha.1 and older keep AirDrop off here. See the bluetoothd check below."
 elif [ -n "$OS_BUILD" ] && echo " $OFFLINE_BUILDS " | grep -q " $OS_BUILD "; then
     pass "macOS $OS_VER ($OS_BUILD): supported. Its Wi-Fi stack was checked against $TESTED_BUILD and is the same where"
     pass "the driver depends on it. See the bluetoothd pattern check below for the Bluetooth side. Please report your result."
 elif [ "${OS_MAJOR:-0}" = "15" ]; then
     # The Sequoia kexts (ForbiddenItlwm and BTLEAdvFixup for Sequoia), not the Tahoe ones.
-    SEQ_VERIFIED="24H23 24H32 24H232 24H241"   # 24H32 (15.8.1) and 24H232 (15.8.2) run verified kernels
+    SEQ_VERIFIED="24H23 24H241"   # checked offline as build pairs
+    SEQ_NEXT="24H32 24H230 24H232 24G419 24G517 24G824 24G830"   # checked offline; on the list from 0.7.0-alpha.2
     OS_MINOR=$(echo "$OS_VER" | cut -d. -f2)
     if echo " $SEQ_VERIFIED " | grep -q " $OS_BUILD "; then
         pass "macOS $OS_VER ($OS_BUILD): supported by the Sequoia kexts. Users report AirDrop working on 15.8.1 to 15.8.3"
         pass "with 0.5.1-test1 or later. Use the Sequoia ForbiddenItlwm and BTLEAdvFixup."
+    elif echo " $SEQ_NEXT " | grep -q " $OS_BUILD "; then
+        pass "macOS $OS_VER ($OS_BUILD): its Wi-Fi stack was checked offline and is fully supported from 0.7.0-alpha.2."
+        warn "With 0.7.0-alpha.1 or older, AirDrop's announcement copy stays off here (15.8.1, 15.8.2) or AirDrop stays off"
+        warn "(15.7.x). See the bluetoothd check below for BTLEAdvFixup. Please report your result."
     elif [ "${OS_MINOR:-0}" = "8" ]; then
         warn "macOS $OS_VER ($OS_BUILD): expected to work with the Sequoia kexts (same 15.8 kernel family), but this build"
         warn "wasn't checked offline. The driver still checks Apple's Wi-Fi tables at boot. Please report your result."
     else
-        fail "On Sequoia, AirDrop needs macOS 15.8 or newer (this is $OS_VER). Normal Wi-Fi may still work with the Sequoia kext."
+        fail "On Sequoia, AirDrop needs macOS 15.7.3, 15.7.4, 15.7.8, 15.7.9 or 15.8.x (this is $OS_VER). Normal Wi-Fi may still work with the Sequoia kext."
         BLOCKERS=$((BLOCKERS + 1))
     fi
 elif [ "${OS_MAJOR:-0}" = "14" ]; then
-    # The Sonoma kexts (in development): only 14.8.9 was checked offline.
-    if [ "$OS_BUILD" = "23J631" ]; then
+    # The Sonoma kexts (test build): 14.8.9 checked offline, and 14.8.3, 14.8.4, 14.8.7 and 14.8.8 from 0.7.0-alpha.2.
+    if [ "$OS_BUILD" = "23J220" ] || [ "$OS_BUILD" = "23J319" ] || [ "$OS_BUILD" = "23J520" ] || [ "$OS_BUILD" = "23J620" ]; then
+        pass "macOS $OS_VER ($OS_BUILD): its Wi-Fi stack was checked offline and is supported by the Sonoma kexts from"
+        warn "0.7.0-alpha.2; 0.7.0-alpha.1 and older keep AirDrop off here. See the bluetoothd check below."
+    elif [ "$OS_BUILD" = "23J631" ]; then
         pass "macOS $OS_VER ($OS_BUILD): supported by the Sonoma kexts. Their Wi-Fi stack was checked offline, but Sonoma"
         pass "isn't confirmed working on hardware yet, so please report your result. Use the Sonoma ForbiddenItlwm and BTLEAdvFixup."
     else
-        warn "macOS $OS_VER ($OS_BUILD): only Sonoma 14.8.9 (23J631) is checked. On this build the Sonoma kext keeps AirDrop off"
+        warn "macOS $OS_VER ($OS_BUILD): only Sonoma 14.8.3, 14.8.4, 14.8.7, 14.8.8 and 14.8.9 are checked. On this build the Sonoma kext keeps AirDrop off"
         warn "(normal Wi-Fi may still work). Updating to 14.8.9 is the way to get AirDrop on Sonoma."
     fi
 elif [ "${OS_MAJOR:-0}" = "26" ]; then
@@ -224,6 +238,10 @@ fi
 MARKER=$(ioreg -l -w0 2>/dev/null | sed -n 's/.*"ItlwmAWDLInterfaceBuild" = "\([^"]*\)".*/\1/p' | head -1)
 if [ -n "$MARKER" ]; then
     pass "The AirDrop build is running: $MARKER."
+    # From 0.7.0-alpha.2, -itlawdloff turns AirDrop off on purpose: the driver then works as plain Wi-Fi.
+    case "$(ioreg -l -w0 2>/dev/null | sed -n 's/.*"ItlwmAWDLBuildCheck" = "\([^"]*\)".*/\1/p' | head -1)" in
+        "off: -itlawdloff") warn "AirDrop is turned off by -itlawdloff (normal Wi-Fi only). Remove it from boot-args to use AirDrop.";;
+    esac
 else
     info "ForbiddenItlwm's AirDrop interface isn't running (no ItlwmAWDLInterfaceBuild key). That's expected before installing it."
 fi
@@ -276,7 +294,7 @@ fi
 if [ -n "$BTLEADV" ]; then pass "BTLEAdvFixup $BTLEADV is loaded."; else info "BTLEAdvFixup isn't loaded. It's part of the AirDrop package."; fi
 [ -n "$IBTPATCH" ] && [ -n "$BTLEADV" ] && warn "IntelBTPatcher and BTLEAdvFixup are both loaded. The tested setup disables IntelBTPatcher, as both hook the same USB requests."
 # BTLEAdvFixup patches four places in bluetoothd. Its patterns are exact bytes from macOS 26.7.1
-# (25G241) and 26.7.3 (25G342) for the Tahoe build, and from 15.8.3 (24H241) for the Sequoia build (also matching 15.8 and 15.8.2), so
+# (25G241) and 26.7.3 (25G342) for the Tahoe build, from 15.8.3 (24H241) and 15.7.x for the Sequoia build, and from 14.8.9 and 14.8.7 for Sonoma, so
 # they only match a bluetoothd of one of those builds. This reads /usr/sbin/bluetoothd
 # (read-only) and counts each site in its original form and, when BTLEAdvFixup is already running and
 # the page cache returns the patched page, in its patched form. Generated from
@@ -290,13 +308,20 @@ if [ -r "$BTD" ] && command -v perl >/dev/null 2>&1; then
         if ($ENV{BT_SET} eq "sonoma") {
             @advertising = (n("84c00f8434010000e88e7cfaff488b084889c7ff91000700004189c6"), n("84c0909090909090e88e7cfaff488b084889c7b801000000904189c6"));
             @scanning = (n("84c00f8434010000e8207ffaff488b084889c7ff91700700004189c6"), n("84c0909090909090e8207ffaff488b084889c7b801000000904189c6"));
-            @randomAddress = (n("83b8c402000003772331ffe8fca4d6ff"), n("83b8c402000003772390909090909090"));
-            @extendedConnection = (n("0fb6bd6effffffe8c8bfd7ff"), n("bf010000009090e8c8bfd7ff"));
+            # 14.8.9 and 14.8.8, plus the 14.8.7 randomAddress and extendedConnection (the patched randomAddress bytes are shared).
+            @randomAddress = (n("83b8c402000003772331ffe8fca4d6ff") + n("83b8c402000003772331ffe800a6d6ff"), n("83b8c402000003772390909090909090"));
+            @extendedConnection = (n("0fb6bd6effffffe8c8bfd7ff") + n("0fb6bd6effffffe8ccc0d7ff"),
+                                   n("bf010000009090e8c8bfd7ff") + n("bf010000009090e8ccc0d7ff"));
         } elsif ($ENV{BT_SET} eq "sequoia") {
-            @advertising = (n("84c00f8438010000e8104cf9ff488b084889c7ff91c00700004189c6"), n("84c0909090909090e8104cf9ff488b084889c7b801000000904189c6"));
-            @scanning = (n("84c00f8438010000e8ba4ef9ff488b084889c7ff91480800004189c6"), n("84c0909090909090e8ba4ef9ff488b084889c7b801000000904189c6"));
-            @randomAddress = (n("83b8f8020000037723" . "31ffe859abd2ff"), n("83b8f802000003772390909090909090"));
-            @extendedConnection = (n("0fb6bd5effffffe800cfd3ff"), n("bf010000009090e800cfd3ff"));
+            # 15.8.x, plus the 15.7.x set (15.7.3, 15.7.8, 15.7.9). Only one set can match a given bluetoothd.
+            @advertising = (n("84c00f8438010000e8104cf9ff488b084889c7ff91c00700004189c6") + n("84c00f8438010000e8c04cf9ff488b084889c7ff91c00700004189c6"),
+                            n("84c0909090909090e8104cf9ff488b084889c7b801000000904189c6") + n("84c0909090909090e8c04cf9ff488b084889c7b801000000904189c6"));
+            @scanning = (n("84c00f8438010000e8ba4ef9ff488b084889c7ff91480800004189c6") + n("84c00f8438010000e86a4ff9ff488b084889c7ff91480800004189c6"),
+                         n("84c0909090909090e8ba4ef9ff488b084889c7b801000000904189c6") + n("84c0909090909090e86a4ff9ff488b084889c7b801000000904189c6"));
+            @randomAddress = (n("83b8f8020000037723" . "31ffe859abd2ff") + n("83b8f802000003772331ffe879acd2ff") + n("83b8f802000003772331ffe87dadd2ff"),
+                              n("83b8f802000003772390909090909090"));
+            @extendedConnection = (n("0fb6bd5effffffe800cfd3ff") + n("0fb6bd5effffffe820d0d3ff") + n("0fb6bd5effffffe824d1d3ff"),
+                                   n("bf010000009090e800cfd3ff") + n("bf010000009090e820d0d3ff") + n("bf010000009090e824d1d3ff"));
         } else {
             # Tahoe: the 26.7.1 and 26.7.3 sets. Only one set can match a given bluetoothd.
             @advertising = (n("84c00f8438010000e80878f8ff488b084889c7ff91180900004189c6") + n("84c00f8438010000e81878f8ff488b084889c7ff91180900004189c6"),
@@ -488,12 +513,22 @@ if [ -n "$MARKER" ]; then
     done
     # The experimental flags from docs/BOOT-FLAGS.md: off unless set, named so reports show them.
     EXPERIMENTAL=""
+    SIMULATION=""
     for t in $ARGS; do
-        case "$t" in itlawdlsched=*|itlsched*|-itlsched*|-btleadvnodupfilter) EXPERIMENTAL="$EXPERIMENTAL $t";; esac
+        case "$t" in itlawdlsched=*|itlsched*|-itlsched*|-btleadvnodupfilter|-itlawdlmultipeer|-itlawdlpeerhandoff|-itlawdlstatest|-itlawdlamsdurx|-itlwmwpa3) EXPERIMENTAL="$EXPERIMENTAL $t";; esac
+        case "$t" in itlsim*|-itlsim*) SIMULATION="$SIMULATION $t";; esac
     done
     [ -n "$EXPERIMENTAL" ] && info "Experimental boot flags set:$EXPERIMENTAL. Mention them when you report a result."
+    [ -n "$SIMULATION" ] && warn "Test-only simulation flags set:$SIMULATION. They fake the Wi-Fi width or AirDrop's channel; remove them for normal use."
     # macOS ignores the whole boot-args line when it is 1024 characters or longer.
     [ "${#ARGS}" -ge 1024 ] && fail "boot-args is ${#ARGS} characters long; macOS ignores all of it from 1024. Shorten it."
+    # From 0.7.0-alpha.2 the driver turns the Wi-Fi part of the tested set on by itself (ItlwmAWDLDefaults); only
+    # BTLEAdvFixup's -btleadv is still needed. Leftover flags from older releases change nothing.
+    DEFAULTS=$(ioreg -l -w0 2>/dev/null | sed -n 's/.*"ItlwmAWDLDefaults" = "\([^"]*\)".*/\1/p' | head -1)
+    case "$DEFAULTS" in
+        on*) info "This driver turns the tested set's Wi-Fi flags on by itself; only -btleadv is still needed."
+             case "$MISSING" in *-btleadv*) MISSING=" -btleadv";; *) MISSING="";; esac;;
+    esac
     if [ -z "$MISSING" ]; then
         pass "All AirDrop boot flags of the tested set are set."
     else

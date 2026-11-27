@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import copy
 import os
+import platform
 import plistlib
 import sys
 from typing import Any
 
 NVRAM_APPLE_GUID = "7C436110-AB2A-4BBB-A880-FE41995C9F82"
 
+# Legacy tested boot-args required for ForbiddenItlwm <= 0.7.0-alpha.1 (0.6.0-beta.4).
+# From 0.7.0-alpha.2+, all Wi-Fi AWDL flags are enabled by default and only -btleadv is needed.
 TESTED_BOOT_ARGS = [
     "-btleadv",
     "-itlawdlcoexprobe",
@@ -40,6 +43,42 @@ ALPHA_EXPERIMENTAL_ARGS = [
 
 AIRDROP_MANAGED_KEXTS = {"BTLEAdvFixup.kext", "ForbiddenItlwm.kext"}
 
+KERNEL_BOUNDS = {
+    "tahoe": ("25.0.0", "25.99.99", "Tahoe"),
+    "sequoia": ("24.0.0", "24.99.99", "Sequoia"),
+    "sonoma": ("23.4.0", "23.99.99", "Sonoma"),
+}
+
+
+def _detect_target(target: str) -> str:
+    if target != "auto":
+        return target
+    if sys.platform == "darwin":
+        major = int(platform.release().split(".")[0])
+        if major >= 25:
+            return "tahoe"
+        if major == 24:
+            return "sequoia"
+        if major == 23:
+            return "sonoma"
+    return "tahoe"
+
+
+def _detect_forbidden_version(kext_dir: str | None) -> tuple[int, ...]:
+    if not kext_dir:
+        return (0, 7, 0)
+    plist_path = os.path.join(kext_dir, "ForbiddenItlwm.kext", "Contents", "Info.plist")
+    if not os.path.isfile(plist_path):
+        return (0, 7, 0)
+    with open(plist_path, "rb") as fh:
+        info = plistlib.load(fh)
+    ver = str(info.get("CFBundleShortVersionString", "0.7.0")).split("-")[0]
+    parts = []
+    for p in ver.split("."):
+        digits = "".join(ch for ch in p if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
 
 def _is_airdrop_token(token: str) -> bool:
     return (
@@ -48,12 +87,18 @@ def _is_airdrop_token(token: str) -> bool:
     )
 
 
-def _update_boot_args(raw: str, mode: str | None) -> str:
+def _update_boot_args(raw: str, mode: str | None, kext_dir: str | None = None) -> str:
     tokens = [t for t in raw.split() if not _is_airdrop_token(t)]
     if mode == "beta":
-        tokens.extend(TESTED_BOOT_ARGS)
+        if _detect_forbidden_version(kext_dir) >= (0, 7, 0):
+            tokens.append("-btleadv")
+        else:
+            tokens.extend(TESTED_BOOT_ARGS)
     elif mode == "alpha":
-        tokens.extend(TESTED_BOOT_ARGS)
+        if _detect_forbidden_version(kext_dir) >= (0, 7, 0):
+            tokens.append("-btleadv")
+        else:
+            tokens.extend(TESTED_BOOT_ARGS)
         tokens.extend(ALPHA_EXPERIMENTAL_ARGS)
     updated = " ".join(tokens)
     if len(updated) >= 1024:
@@ -141,15 +186,27 @@ def _validate_airdrop_config(cfg: dict[str, Any], kext_dir: str | None) -> None:
         _validate_kext_dir(add_list, kext_dir)
 
 
-def apply_airdrop(cfg: dict[str, Any], mode: str, kext_dir: str | None) -> dict[str, Any]:
+def apply_airdrop(
+    cfg: dict[str, Any],
+    mode: str,
+    kext_dir: str | None,
+    target: str = "auto",
+) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
+    resolved_target = _detect_target(target)
+    min_k, max_k, os_label = KERNEL_BOUNDS[resolved_target]
 
     nvram_add = out["NVRAM"]["Add"][NVRAM_APPLE_GUID]
-    nvram_add["boot-args"] = _update_boot_args(nvram_add.get("boot-args", ""), mode)
+    nvram_add["boot-args"] = _update_boot_args(
+        nvram_add.get("boot-args", ""), mode, kext_dir
+    )
 
     nvram_del = out["NVRAM"]["Delete"].setdefault(NVRAM_APPLE_GUID, [])
     if "boot-args" not in nvram_del:
         nvram_del.append("boot-args")
+
+    if resolved_target == "tahoe":
+        out["Kernel"]["Quirks"]["PowerTimeoutKernelPanic"] = False
 
     new_add: list[dict[str, Any]] = []
     inserted_btle = False
@@ -169,9 +226,9 @@ def apply_airdrop(cfg: dict[str, Any], mode: str, kext_dir: str | None) -> dict[
                     bundle="BTLEAdvFixup.kext",
                     executable="Contents/MacOS/BTLEAdvFixup",
                     arch="Any",
-                    min_kernel="21.0.0",
-                    max_kernel="",
-                    comment="BTLEAdvFixup for AirDrop BLE advertising",
+                    min_kernel=min_k,
+                    max_kernel=max_k,
+                    comment=f"BTLEAdvFixup ({os_label}) for AirDrop BLE advertising",
                 )
             )
             inserted_btle = True
@@ -184,9 +241,9 @@ def apply_airdrop(cfg: dict[str, Any], mode: str, kext_dir: str | None) -> dict[
             bundle="ForbiddenItlwm.kext",
             executable="Contents/MacOS/ForbiddenItlwm",
             arch="x86_64",
-            min_kernel="24.0.0",
-            max_kernel="24.99.99",
-            comment=f"ForbiddenItlwm ({mode}) for Sequoia AirDrop/AWDL",
+            min_kernel=min_k,
+            max_kernel=max_k,
+            comment=f"ForbiddenItlwm ({mode}, {os_label}) for AirDrop/AWDL",
         )
     )
     out["Kernel"]["Add"] = new_add
@@ -227,6 +284,9 @@ def main() -> int:
 
     p_apply = sub.add_parser("apply", help="Enable ForbiddenItlwm AirDrop config")
     p_apply.add_argument("--mode", choices=("beta", "alpha"), default="beta")
+    p_apply.add_argument(
+        "--target", choices=("auto", "tahoe", "sequoia", "sonoma"), default="auto"
+    )
     p_apply.add_argument("--input", required=True)
     p_apply.add_argument("--output", required=True)
     p_apply.add_argument("--kext-dir", default=None)
@@ -241,7 +301,7 @@ def main() -> int:
         cfg = plistlib.load(fh)
 
     if args.cmd == "apply":
-        result = apply_airdrop(cfg, args.mode, args.kext_dir)
+        result = apply_airdrop(cfg, args.mode, args.kext_dir, args.target)
     else:
         result = revert_airdrop(cfg, args.kext_dir)
 

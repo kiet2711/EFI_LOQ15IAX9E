@@ -5,11 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC_KEXTS="$REPO_DIR/EFI/OC/Kexts"
 MODE="beta"
+TARGET="auto"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --beta) MODE="beta" ;;
         --alpha) MODE="alpha" ;;
+        --target)
+            shift
+            [ $# -gt 0 ] || { echo "Missing value after --target" >&2; exit 2; }
+            TARGET="$1"
+            ;;
         --kexts-dir)
             shift
             [ $# -gt 0 ] || { echo "Missing path after --kexts-dir" >&2; exit 2; }
@@ -17,11 +23,12 @@ while [ $# -gt 0 ]; do
             ;;
         -h|--help)
             cat <<'EOF'
-Usage: install-airdrop.sh [--beta | --alpha] [--kexts-dir PATH]
+Usage: install-airdrop.sh [--beta | --alpha] [--target auto|tahoe|sequoia|sonoma] [--kexts-dir PATH]
   Installs ForbiddenItlwm.kext + BTLEAdvFixup.kext from the repo EFI/OC/Kexts
   into the live OPENCORE EFI partition while preserving your existing SMBIOS.
-  --beta         Use tested boot-args (default, matches bundled 0.6.0-beta.4)
+  --beta         Use tested default AirDrop boot-args (default)
   --alpha        Also append experimental alpha flags (itlawdlsched=1 -btleadvnodupfilter)
+  --target       Target macOS kernel bounds (auto, tahoe, sequoia, sonoma)
   --kexts-dir    Custom directory containing ForbiddenItlwm.kext and BTLEAdvFixup.kext
 EOF
             exit 0
@@ -58,6 +65,7 @@ echo "Installed kexts from $SRC_KEXTS (kept AirportItlwm.kext and IntelBTPatcher
 
 python3 "$SCRIPT_DIR/patch_opencore.py" apply \
     --mode "$MODE" \
+    --target "$TARGET" \
     --input "$OC_DIR/config.plist" \
     --output "$OC_DIR/config.plist" \
     --kext-dir "$KEXT_DIR"
