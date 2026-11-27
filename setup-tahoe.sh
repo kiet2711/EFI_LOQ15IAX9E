@@ -5,6 +5,7 @@ set -euo pipefail
 # Automatically detects whether RTX 3050 (10DE) is already visible on PCI:
 #   - Phase 1 (pre-reboot): installs 144Hz display override, syncs full Tahoe EFI to OPENCORE, optimizes pmset.
 #   - Phase 2 (post-reboot): installs NullMoth v3.1 NVIDIA driver offline using ~/Downloads files.
+#   - --upgrade-wex: updates WhateverXe.kext (0.8.6 patched) + WhateverXe-Graphics (0.4.5) + safe pmset.
 #   - --check: prints live verification for AirDrop, 144Hz display, and Dual GPU.
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,20 +13,25 @@ DL_DIR="${HOME}/Downloads"
 NULLMOTH_TGZ="${DL_DIR}/nullmoth-nvidia-3.1.tar.gz"
 NV_RUN="${DL_DIR}/NVIDIA-Linux-x86_64-620.70.06.run"
 NV_RUN_SHA="29118e3abd08c07559bcca3d9c76238d039490af0362a2e5bcfcbe7204afd4b1"
+WEX_PKG="${DL_DIR}/WhateverXe-0.4.5/WhateverXe-Graphics-0.4.5.pkg"
+WEX_PKG_URL="https://github.com/b00t0x/WhateverXe-Graphics/releases/download/v0.4.5/WhateverXe-Graphics-0.4.5.pkg"
+WEX_PKG_SHA="f6ec2bdcc4d826d9b5be4858da5f4c1b79cc5872ee93ab0ba9abfc3609e9aa37"
 
 MODE="auto"
 while [ $# -gt 0 ]; do
     case "$1" in
         --phase1) MODE="phase1" ;;
         --phase2) MODE="phase2" ;;
+        --upgrade-wex) MODE="upgrade-wex" ;;
         --check)  MODE="check" ;;
         -h|--help)
             cat <<'EOF'
-Usage: ./setup-tahoe.sh [--phase1 | --phase2 | --check]
-  (default)  Auto-detect Phase 1 (144Hz + EFI + pmset) or Phase 2 (NullMoth RTX 3050)
-  --phase1   Force Phase 1 (Display 144Hz override + OPENCORE EFI sync + pmset)
-  --phase2   Force Phase 2 (Install NullMoth v3.1 RTX 3050 driver offline)
-  --check    Verify AirDrop, BOE 144Hz display, and Intel + NVIDIA GPUs
+Usage: ./setup-tahoe.sh [--phase1 | --phase2 | --upgrade-wex | --check]
+  (default)      Auto-detect Phase 1 (144Hz + EFI + pmset) or Phase 2 (NullMoth RTX 3050)
+  --phase1       Force Phase 1 (Display 144Hz override + OPENCORE EFI sync + pmset)
+  --phase2       Force Phase 2 (Install NullMoth v3.1 RTX 3050 driver offline)
+  --upgrade-wex  Sync patched WhateverXe 0.8.6 to OPENCORE, install WhateverXe-Graphics 0.4.5, apply safe pmset
+  --check        Verify AirDrop, BOE 144Hz display, and Intel + NVIDIA GPUs
 EOF
             exit 0
             ;;
@@ -33,6 +39,29 @@ EOF
     esac
     shift
 done
+
+apply_tahoe_pmset() {
+    echo "Optimizing power management (disabling Hibernate, DarkWake, and idle auto-sleep)..."
+    sudo pmset -a sleep 0 hibernatemode 0 standby 0 autopoweroff 0 powernap 0 tcpkeepalive 0 womp 0
+    sudo pmset -c displaysleep 0 proximitywake 0
+    sudo pmset -b displaysleep 5
+}
+
+install_wex_graphics() {
+    if [ ! -f "$WEX_PKG" ]; then
+        echo "Downloading WhateverXe-Graphics-0.4.5.pkg..."
+        mkdir -p "$(dirname "$WEX_PKG")"
+        curl -fsSL -o "$WEX_PKG" "$WEX_PKG_URL"
+    fi
+    echo "Verifying WhateverXe-Graphics-0.4.5.pkg SHA-256..."
+    ACTUAL_WEX_SHA="$(shasum -a 256 "$WEX_PKG" | awk '{print $1}')"
+    if [ "$ACTUAL_WEX_SHA" != "$WEX_PKG_SHA" ]; then
+        echo "ERROR: SHA-256 mismatch on $WEX_PKG ($ACTUAL_WEX_SHA != $WEX_PKG_SHA)" >&2
+        exit 1
+    fi
+    echo "Installing WhateverXe-Graphics-0.4.5.pkg (sudo password required; rebuilds AuxKC)..."
+    sudo installer -pkg "$WEX_PKG" -target /
+}
 
 run_checks() {
     echo "=== 1. Displays & GPUs ==="
@@ -55,6 +84,7 @@ PY
     echo
     echo "=== 3. Loaded Graphics / AirDrop Kexts ==="
     kmutil showloaded --list-only 2>/dev/null | grep -iE "whatever|amfi|tgl|nullmoth|nvrm|nvaccel|forbidden|btle|bluetool|intelbluetooth|airport" || true
+    pkgutil --pkg-info org.b00t0x.WhateverXe.Tahoe 2>/dev/null | grep -E '^(package-id|version):' || true
     echo
     if [ -x /Applications/1401.app/Contents/Resources/nullmoth-metal-devices ]; then
         echo "=== 4. NullMoth Metal Devices ==="
@@ -84,6 +114,42 @@ if [ "$MODE" = "auto" ]; then
     else
         MODE="phase1"
     fi
+fi
+
+if [ "$MODE" = "upgrade-wex" ]; then
+    echo "============================================================"
+    echo " Upgrading WhateverXe (0.8.6 LOQ Patch) + Graphics (0.4.5)"
+    echo "============================================================"
+    echo
+    [ -d "$REPO_DIR/EFI/OC/Kexts/WhateverXe.kext" ] || { echo "ERROR: Missing EFI/OC/Kexts/WhateverXe.kext" >&2; exit 1; }
+
+    echo "[1/3] Mounting OPENCORE EFI partition and updating WhateverXe.kext..."
+    # shellcheck source=airdrop/efi_common.sh
+    source "$REPO_DIR/airdrop/efi_common.sh"
+    mount_opencore_efi
+    rm -rf "${KEXT_DIR:?}/WhateverXe.kext"
+    cp -RX "$REPO_DIR/EFI/OC/Kexts/WhateverXe.kext" "$KEXT_DIR/"
+    echo "Updated $KEXT_DIR/WhateverXe.kext -> $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$KEXT_DIR/WhateverXe.kext/Contents/Info.plist")"
+
+    echo
+    echo "[2/3] Upgrading WhateverXe-Graphics to 0.4.5..."
+    install_wex_graphics
+
+    echo
+    echo "[3/3] Applying Tahoe pmset settings (keep Windows default untouched)..."
+    apply_tahoe_pmset
+
+    cat <<'EOF'
+
+============================================================
+ UPGRADE COMPLETE!
+============================================================
+Next steps:
+  1. Restart macOS once so WhateverXe 0.8.6 + WhateverXe-Graphics 0.4.5 load cleanly.
+  2. After rebooting, verify with:
+       ./setup-tahoe.sh --check
+EOF
+    exit 0
 fi
 
 if [ "$MODE" = "phase1" ]; then
@@ -138,8 +204,8 @@ PY
     plutil -lint "$OC_DIR/config.plist"
 
     echo
-    echo "[4/4] Optimizing power management (disabling Hibernate for sleep/wake)..."
-    sudo pmset -a hibernatemode 0 standby 0 autopoweroff 0 powernap 0
+    echo "[4/4] Optimizing power management..."
+    apply_tahoe_pmset
 
     cat <<'EOF'
 

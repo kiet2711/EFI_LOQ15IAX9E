@@ -2,7 +2,7 @@
 
 Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G342)`** (và tương thích Sequoia `15.8.x`), kết hợp đầy đủ:
 - **Dual GPU song song:**
-  - **iGPU Intel UHD Graphics (`0x468B`, Metal 2, 1536 MB VRAM)** qua **WhateverXe 0.8.3** (bản vá cho Alder Lake-HX) + `WhateverXe-Graphics 0.4.4`, phụ trách màn hình laptop `BOE NE156FHM-NX9` (`60 / 120 / 144 Hz`) và chỉnh sáng `AppleBacklightDisplay`.
+  - **iGPU Intel UHD Graphics (`0x468B`, Metal 2, 1536 MB VRAM)** qua **WhateverXe 0.8.6** (bản vá cho Alder Lake-HX) + `WhateverXe-Graphics 0.4.5`, phụ trách màn hình laptop `BOE NE156FHM-NX9` (`60 / 120 / 144 Hz`) và chỉnh sáng `AppleBacklightDisplay`.
   - **dGPU NVIDIA GeForce RTX 3050 6GB Laptop GPU (`10DE:25AC`, Metal 3, 6 GB VRAM)** qua **NullMoth (`v3.1` / `1401.app`)** + `SSDT-PEG1-KeepPower.aml` nhận thẳng lúc boot, phụ trách tăng tốc Metal 3 / tính toán và xuất màn hình ngoài qua **HDMI**.
 - **AirDrop / AWDL gốc trên Intel Wi-Fi:** `ForbiddenItlwm 0.7.0-alpha.4 (Tahoe)` + `BTLEAdvFixup 0.9.8 (Tahoe)` *(giữ sẵn `AirportItlwm 2.4.0 Tahoe` làm dự phòng)*.
 
@@ -20,7 +20,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G34
 | --- | --- | --- | --- |
 | **Máy** | Lenovo LOQ 15IAX9E (`83LK`) | Hoạt động | SMBIOS `MacBookPro16,1` (được macOS 26 Tahoe hỗ trợ gốc) |
 | **CPU** | Intel Core i5-12450HX (12th Gen) | Hoạt động | `CpuTopologyRebuild 2.0.2` + `CpuTscSync 1.1.2` |
-| **iGPU** | Intel UHD Graphics (`8086:468B`, rev `0x0C`) | Hoạt động | `WhateverXe 0.8.3` (patched) + `WhateverXe-Graphics 0.4.4`, Metal 2, 1536 MB, chỉnh sáng `AppleBacklightDisplay` |
+| **iGPU** | Intel UHD Graphics (`8086:468B`, rev `0x0C`) | Hoạt động | `WhateverXe 0.8.6` (patched) + `WhateverXe-Graphics 0.4.5`, Metal 2, 1536 MB, chỉnh sáng `AppleBacklightDisplay` |
 | **dGPU** | NVIDIA GeForce RTX 3050 6GB Laptop GPU (`10DE:25AC`, sub `17AA:3DA0`) | Hoạt động song song | `SSDT-PEG1-KeepPower.aml` + `AMFIPass 1.4.1` + `NullMoth v3.1` (`NVRM`/`NVAccel`/`NVRMFB`/`NVRMAGDC`), Metal 3, 6 GB VRAM, xuất HDMI |
 | **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) + HDMI ngoài | Hoạt động | Màn trong `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)) trên Intel UHD; HDMI ngoài trên RTX 3050 |
 | **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `ForbiddenItlwm 0.7.0-alpha.4 (Tahoe)` (`MinKernel = 25.0.0`, `MaxKernel = 25.99.99`), kèm dự phòng `AirportItlwm 2.4.0` (`laobamac` Tahoe) |
@@ -38,12 +38,12 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G34
 ### A. Driver đồ họa & bộ cài
 | Thành phần | Mục đích | Link tải chính thức |
 | --- | --- | --- |
-| **WhateverXe Graphics (`0.4.4+`)** | Gói `.pkg` cài `AppleIntelTGLCompat`, `AppleIntelTGLGraphics*` cho iGPU Intel vào `/Library/Extensions` & `/Library/GPUBundles` | [b00t0x/WhateverXe-Graphics Releases](https://github.com/b00t0x/WhateverXe-Graphics/releases) |
+| **WhateverXe Graphics (`0.4.5+`)** | Gói `.pkg` cài `AppleIntelTGLCompat`, `AppleIntelTGLGraphics*` cho iGPU Intel vào `/Library/Extensions` & `/Library/GPUBundles` | [b00t0x/WhateverXe-Graphics Releases](https://github.com/b00t0x/WhateverXe-Graphics/releases) |
 | **NullMoth NVIDIA Driver + 1401 (`v3.1+`)** | Driver RTX 3050 hỗ trợ macOS 15 & 26 Tahoe (`NVRM`, `NVAccel`, `NVRMFB`, `NVRMAGDC`, `NVMTLDriver`) — `1401-Mac-3.1.zip`, `nullmoth-nvidia-3.1.tar.gz`, `SHA256SUMS.txt` | [nullmoth/nvidia-macos-driver Releases](https://github.com/nullmoth/nvidia-macos-driver/releases) |
 | **NVIDIA Linux Runfile (`620.70.06`)** | Cung cấp GSP firmware (`gsp_ga10x.bin`, `ucodes_ga10x.bin`) đúng mã pin của NullMoth `v3.1` | [NVIDIA Linux x86_64 620.70.06](https://us.download.nvidia.com/XFree86/Linux-x86_64/620.70.06/NVIDIA-Linux-x86_64-620.70.06.run) |
 
 ### B. Nguồn gốc các Kext chính trên nhánh Tahoe
-- **Core & Đồ họa:** `Lilu 1.7.3`, `AMFIAnchor 0.1.2` + `AMFIAnchorInjector 1.0.0`, `AMFIPass 1.4.1`, `WhateverXe 0.8.3` (bản vá [WhateverXe-0.8.3-LOQ-ADL-HX.patch](patches/WhateverXe-0.8.3-LOQ-ADL-HX.patch)), `BrightnessKeys 1.0.4`.
+- **Core & Đồ họa:** `Lilu 1.7.3`, `AMFIAnchor 0.1.2` + `AMFIAnchorInjector 1.0.0`, `AMFIPass 1.4.1`, `WhateverXe 0.8.6` (bản vá [WhateverXe-0.8.6-LOQ-ADL-HX.patch](patches/WhateverXe-0.8.6-LOQ-ADL-HX.patch)), `BrightnessKeys 1.0.4`.
 - **Wi-Fi, Bluetooth & AirDrop (Tahoe `25.x`):**
   - `ForbiddenItlwm 0.7.0-alpha.4 (Tahoe)` & `BTLEAdvFixup 0.9.8 (Tahoe)`: https://github.com/retropineaple/ForbiddenItlwm/releases
   - `AirportItlwm 2.4.0 (Tahoe alpha 7204c69)` *(dự phòng khi tắt AirDrop)*: https://github.com/laobamac/itlwm/releases
@@ -103,7 +103,8 @@ Script [`setup-tahoe.sh`](setup-tahoe.sh) tự nhận biết máy đang ở Giai
 
 ## 5. Cài từ đầu / Khôi phục & Tiện ích khác
 
-- **Cài trắng macOS lần đầu:** Tạm copy `EFI/OC/config-safe-7mb.plist` → `EFI/OC/config.plist` để cài đặt ở chế độ VESA 7MB, sau đó cài `WhateverXe-Graphics-0.4.4.pkg`, đổi lại `config.plist` chính và Reset NVRAM 1 lần.
+- **Cài trắng macOS lần đầu:** Tạm copy `EFI/OC/config-safe-7mb.plist` → `EFI/OC/config.plist` để cài đặt ở chế độ VESA 7MB, sau đó cài `WhateverXe-Graphics-0.4.5.pkg`, đổi lại `config.plist` chính và Reset NVRAM 1 lần.
+- **Nâng cấp WhateverXe 0.8.6 (LOQ patch) + Graphics 0.4.5 + `pmset` chống sập Sleep/DarkWake:** chạy `./setup-tahoe.sh --upgrade-wex` (tự cập nhật `WhateverXe.kext` lên phân vùng `OPENCORE`, cài `WhateverXe-Graphics-0.4.5.pkg` giữ nguyên NullMoth/AuxKC, và cấu hình `pmset`) rồi Restart.
 - **Tắt AirDrop quay lại `AirportItlwm Tahoe`:** chạy `./airdrop/revert-airdrop.sh` (hoặc đổi sang `EFI/OC/config-no-airdrop.plist`) rồi Restart.
 - **Cứu hộ khi lỗi driver NVIDIA:** Tại menu OpenCore chọn **`1401: Start once without NVIDIA driver`** hoặc **`1401: Remove NVIDIA driver`** (`NullMothSafe.efi`).
 - **Sửa lỗi gõ Tiếng Việt (`OpenKey` + `ABC`):** Xem [`keyboard-vn/fix-keyboard-vn.sh`](keyboard-vn/fix-keyboard-vn.sh).
