@@ -985,15 +985,15 @@
 				<key>BundlePath</key>
 				<string>AirportItlwm.kext</string>
 				<key>Comment</key>
-				<string>Intel AX203 Wi-Fi - laobamac Sequoia v2.4.0 alpha 7204c69</string>
+				<string>Intel AX203 Wi-Fi - laobamac Tahoe v2.4.0 alpha 7204c69</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
 				<string>Contents/MacOS/AirportItlwm</string>
 				<key>MaxKernel</key>
-				<string>24.99.99</string>
+				<string></string>
 				<key>MinKernel</key>
-				<string>24.2.0</string>
+				<string>25.0.0</string>
 				<key>PlistPath</key>
 				<string>Contents/Info.plist</string>
 			</dict>
