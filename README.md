@@ -25,7 +25,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G34
 | **Màn hình** | Internal eDP `BOE NE156FHM-NX9` (`1920x1080`) + HDMI ngoài | Hoạt động | Màn trong `60 / 120 / 144 Hz` (qua [`display-144hz/`](display-144hz/)) trên Intel UHD; HDMI ngoài trên RTX 3050 |
 | **Wi-Fi** | Intel CNVi (`8086:7AF0` / `8086:0274`) | Hoạt động | `ForbiddenItlwm 0.7.0-alpha.4 (Tahoe)` (`MinKernel = 25.0.0`, `MaxKernel = 25.99.99`), kèm dự phòng `AirportItlwm 2.4.0` (`laobamac` Tahoe) |
 | **Bluetooth** | Intel Wireless Bluetooth (`8087:0026`) | Hoạt động | `IntelBluetoothFirmware 2.5.0` + `BlueToolFixup 2.7.3` + `BTLEAdvFixup 0.9.8 (Tahoe)` *(tắt `IntelBTPatcher` để tránh xung đột hook)* |
-| **Âm thanh** | Intel Audio (`8086:7AE0` / `AppleALC`, `layout-id = 18`) | Hoạt động | Loa ngoài, tai nghe, mic tích hợp |
+| **Âm thanh** | Intel Audio (`8086:7AD0` / Realtek `ALC257`, `layout-id = 18`) + NVIDIA HDMI | Hoạt động (kể cả Mic) | `SimpleHDA 1.0.2` (khôi phục `AppleHDA` trong RAM) + `AppleALC 1.9.9` + `nmxaudio=2` (để `NMXAudio` chỉ lo HDMI RTX 3050) |
 | **Mạng dây** | Realtek RTL8168H/8111H Gigabit Ethernet | Hoạt động | `RealtekRTL8111 3.0.4` |
 | **Touchpad / Phím** | I2C HID (`Magic Trackpad 2`) + PS/2 Keyboard | Hoạt động | `VoodooI2C 2.9.1` + `VoodooI2CHID 1.0` + `VoodooPS2Controller 2.3.8` |
 | **NVMe** | `SAMSUNG MZAMX512HCLV-00BL2` (`512 GB`) | Hoạt động | `NVMeFix 1.1.4` |
@@ -44,6 +44,7 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G34
 
 ### B. Nguồn gốc các Kext chính trên nhánh Tahoe
 - **Core & Đồ họa:** `Lilu 1.7.3`, `AMFIAnchor 0.1.2` + `AMFIAnchorInjector 1.0.0`, `AMFIPass 1.4.1`, `WhateverXe 0.8.6` (bản vá [WhateverXe-0.8.6-LOQ-ADL-HX.patch](patches/WhateverXe-0.8.6-LOQ-ADL-HX.patch)), `BrightnessKeys 1.0.4`.
+- **Âm thanh & Mic (`Realtek ALC257`):** `SimpleHDA 1.0.2` ([laobamac/SimpleHDA](https://github.com/laobamac/SimpleHDA/releases)) + `AppleALC 1.9.9` (`layout-id = 18`).
 - **Wi-Fi, Bluetooth & AirDrop (Tahoe `25.x`):**
   - `ForbiddenItlwm 0.7.0-alpha.4 (Tahoe)` & `BTLEAdvFixup 0.9.8 (Tahoe)`: https://github.com/retropineaple/ForbiddenItlwm/releases
   - `AirportItlwm 2.4.0 (Tahoe alpha 7204c69)` *(dự phòng khi tắt AirDrop)*: https://github.com/laobamac/itlwm/releases
@@ -58,7 +59,8 @@ Cấu hình **OpenCore (`DBG-109-2026-10-23`)** cho **macOS Tahoe `26.7.3 (25G34
    - `SSDT-PEG1-KeepPower.aml` + **6 ACPI Patch** (`PXP_ _OFF->XOFF`, `POFF->XPOF`, `PEGP _OFF->XOFF`, `DL23->XL23`, `PEG1 _STA->XSTA`, `PC00 GC6I->X6CI`), tắt `SSDT-Disable_GPU_PEG1.aml`.
    - `Booter -> Quirks -> ResizeAppleGpuBars = 0` (`64 MB`).
    - `AMFIPass.kext` (`1.4.1`), `csr-active-config = QwoAAA==` (`0x0A43`), `ExposeSensitiveData = 7`, và `NullMothSafe.efi` trong `Misc -> Tools`.
-   - `boot-args` đầy đủ: `-allow3d -disablegfxfirmware -igfxdvmt -nodisplaysleepDC6 -autopkgbeta -ibtcompatbeta keepsyms=1 -btleadv nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0`.
+   - `boot-args` đầy đủ: `-allow3d -disablegfxfirmware -igfxdvmt -nodisplaysleepDC6 -autopkgbeta -ibtcompatbeta keepsyms=1 -btleadv nvfb=1 nvaccel=1 nvfbheads=4 -nvkmsnosmooth amfi_get_out_of_my_way=0x1 amfi=0x80 ipc_control_port_options=0 nmxaudio=2 shda-lang=vi`.
+   - Âm thanh & Mic (`Realtek ALC257`): macOS 26 Tahoe bỏ `AppleHDA.kext` và `NMXAudio` mặc định chỉ xuất âm thanh không có Mic, nên dùng `SimpleHDA 1.0.2` (`MinKernel = 25.0.0`, nạp sau `AppleALC.kext`) kèm `nmxaudio=2` để `NMXAudio` chỉ xử lý HDMI/DP RTX 3050 và trả `ALC257` (`layout-id = 18`) về cho `SimpleHDA + AppleALC`.
 3. **AirDrop / AWDL trên Tahoe `26.7.3 (25G342)`:**
    - Dùng `ForbiddenItlwm 0.7.0-alpha.4-Tahoe` + `BTLEAdvFixup 0.9.8-Tahoe` (`MinKernel = 25.0.0`, `MaxKernel = 25.99.99`). Từ `0.7.0-alpha.2+`, chỉ cần cờ `-btleadv` trong `boot-args` và `BTLEAdvFixup 0.9.8` vá thêm lỗi crash `bluetoothd` trên Tahoe `26.7.x`.
    - `Kernel -> Quirks -> PowerTimeoutKernelPanic = False`: Trên Tahoe (`kernel 25.6`), quirk này bật sẽ đổi chuỗi `com.apple` thành `not.apple` làm `pf` tắt `enable_netagent` (`= 0`) khiến AirDrop QUIC bị chậm. *(Nếu máy gặp panic liên quan power timeout khi wake, bật lại `True`).*
@@ -104,7 +106,8 @@ Script [`setup-tahoe.sh`](setup-tahoe.sh) tự nhận biết máy đang ở Giai
 ## 5. Cài từ đầu / Khôi phục & Tiện ích khác
 
 - **Cài trắng macOS lần đầu:** Tạm copy `EFI/OC/config-safe-7mb.plist` → `EFI/OC/config.plist` để cài đặt ở chế độ VESA 7MB, sau đó cài `WhateverXe-Graphics-0.4.5.pkg`, đổi lại `config.plist` chính và Reset NVRAM 1 lần.
-- **Nâng cấp WhateverXe 0.8.6 (LOQ patch) + Graphics 0.4.5 + `pmset` chống sập Sleep/DarkWake:** chạy `./setup-tahoe.sh --upgrade-wex` (tự cập nhật `WhateverXe.kext` lên phân vùng `OPENCORE`, cài `WhateverXe-Graphics-0.4.5.pkg` giữ nguyên NullMoth/AuxKC, và cấu hình `pmset`) rồi Restart.
+- **Nâng cấp WhateverXe 0.8.6 (LOQ patch) + Graphics 0.4.5 + `pmset` chống sập DarkWake/Hibernate:** chạy `./setup-tahoe.sh --upgrade-wex` (tự cập nhật `WhateverXe.kext` lên phân vùng `OPENCORE`, cài `WhateverXe-Graphics-0.4.5.pkg` giữ nguyên NullMoth/AuxKC, và cấu hình `pmset` an toàn: Pin `5p/10p`, Sạc `20p/30p`) rồi Restart.
+- **Cài `SimpleHDA 1.0.2` khôi phục Mic & Loa chuẩn `ALC257`:** chạy `./setup-tahoe.sh --install-audio` (đồng bộ `SimpleHDA.kext` + `nmxaudio=2` vào `OPENCORE`, cài `SimpleHDA-HAL-1.0.2.pkg`) rồi Restart.
 - **Tắt AirDrop quay lại `AirportItlwm Tahoe`:** chạy `./airdrop/revert-airdrop.sh` (hoặc đổi sang `EFI/OC/config-no-airdrop.plist`) rồi Restart.
 - **Cứu hộ khi lỗi driver NVIDIA:** Tại menu OpenCore chọn **`1401: Start once without NVIDIA driver`** hoặc **`1401: Remove NVIDIA driver`** (`NullMothSafe.efi`).
 - **Sửa lỗi gõ Tiếng Việt (`OpenKey` + `ABC`):** Xem [`keyboard-vn/fix-keyboard-vn.sh`](keyboard-vn/fix-keyboard-vn.sh).
